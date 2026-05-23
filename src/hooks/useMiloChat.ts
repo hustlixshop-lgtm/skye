@@ -1,5 +1,5 @@
 import { useState, useCallback, useRef } from 'react';
-import type { UserProfile, GigMatch, ChatMessage } from '../lib/supabase';
+import type { UserProfile, Gig, GigMatch, ChatMessage } from '../lib/supabase';
 import type { ConversationPhase, ExtractedGigData, GigCategory } from '../lib/miloAgent';
 import {
   detectCategory,
@@ -24,7 +24,8 @@ type ChatEntry = {
 type UseMiloChatOptions = {
   profile: UserProfile;
   userId: string;
-  onSaveGig: (gig: Parameters<import('../hooks/useAppState').useAppState['saveGig']>[0]) => Promise<{ data: import('../lib/supabase').Gig | null; error: unknown }>;
+  sessionId: string | null;
+  onSaveGig: (gig: Omit<Gig, 'id' | 'user_id' | 'created_at' | 'updated_at' | 'applicant_count'>) => Promise<{ data: Gig | null; error: unknown }>;
   onSaveMatches: (gigId: string, matches: GigMatch[]) => Promise<void>;
   onUpdateMatchDecision: (matchId: string, decision: 'accepted' | 'rejected') => Promise<void>;
   onReleaseEscrow: (matchId: string) => Promise<void>;
@@ -49,6 +50,7 @@ const INITIAL_GIG_DATA: ExtractedGigData = {
 export function useMiloChat({
   profile,
   userId,
+  sessionId,
   onSaveGig,
   onSaveMatches,
   onUpdateMatchDecision,
@@ -64,14 +66,10 @@ export function useMiloChat({
   const [currentGigId, setCurrentGigId] = useState<string | null>(null);
   const abortRef = useRef<AbortController | null>(null);
 
-  const addEntry = useCallback((entry: ChatEntry) => {
-    setEntries((prev) => [...prev, entry]);
-  }, []);
-
   const agentSay = useCallback((content: string, type: ChatEntry['type'] = 'text', extra?: Partial<ChatEntry>) => {
     const entry = makeEntry('agent', content, type, extra);
     setEntries((prev) => [...prev, entry]);
-    void onPersistMessage({ role: 'agent', content, message_type: type === 'match_cards' ? 'match_cards' : 'text', metadata: {} });
+    void onPersistMessage({ role: 'agent', content, message_type: type === 'match_cards' ? 'match_cards' : 'text', metadata: {}, session_id: sessionId });
     return entry;
   }, [onPersistMessage]);
 
@@ -185,7 +183,7 @@ export function useMiloChat({
 
     const userEntry = makeEntry('user', trimmed);
     setEntries((prev) => [...prev, userEntry]);
-    void onPersistMessage({ role: 'user', content: trimmed, message_type: 'text', metadata: {} });
+    void onPersistMessage({ role: 'user', content: trimmed, message_type: 'text', metadata: {}, session_id: sessionId });
 
     const lower = trimmed.toLowerCase();
 

@@ -1,4 +1,4 @@
-import React, { useState } from 'react';
+import { useState } from 'react';
 import { MapPin, Clock, DollarSign, Tag, ChevronRight, Sparkles, User } from 'lucide-react';
 import type { UserProfile } from '../lib/supabase';
 

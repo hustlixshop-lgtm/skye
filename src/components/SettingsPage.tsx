@@ -1,4 +1,4 @@
-import React, { useState, useRef } from 'react';
+import { useState } from 'react';
 import { ArrowLeft, User, MapPin, DollarSign, Tag, Clock, Camera, Save, Loader2, Check, X } from 'lucide-react';
 import type { UserProfile } from '../lib/supabase';
 import { LocationMap } from './LocationMap';

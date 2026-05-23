@@ -1,5 +1,5 @@
 import React, { useState, useRef, useEffect } from 'react';
-import { Send, Bot, User, Sparkles, Menu, Settings, MapPin, DollarSign, Clock, Tag, CheckCircle, XCircle, Shield } from 'lucide-react';
+import { Send, Bot, User, Sparkles, Menu, Settings, MapPin, DollarSign, Shield } from 'lucide-react';
 import type { UserProfile, Gig, GigMatch, ChatMessage } from '../lib/supabase';
 import { useMiloChat } from '../hooks/useMiloChat';
 import { TelemetryCard } from './TelemetryCard';
@@ -8,11 +8,12 @@ import { MatchCard } from './MatchCard';
 type Props = {
   profile: UserProfile;
   userId: string;
+  sessionId: string;
   activeGigs: Gig[];
   matches: GigMatch[];
   totalEscrow: number;
   onOpenSettings: () => void;
-  onSaveGig: (gig: Parameters<import('../hooks/useAppState').useAppState['saveGig']>[0]) => Promise<{ data: Gig | null; error: unknown }>;
+  onSaveGig: (gig: Omit<Gig, 'id' | 'user_id' | 'created_at' | 'updated_at' | 'applicant_count'>) => Promise<{ data: Gig | null; error: unknown }>;
   onSaveMatches: (gigId: string, matches: GigMatch[]) => Promise<void>;
   onUpdateMatchDecision: (matchId: string, decision: 'accepted' | 'rejected') => Promise<void>;
   onReleaseEscrow: (matchId: string) => Promise<void>;
@@ -29,6 +30,7 @@ function renderMarkdown(text: string): string {
 export function ChatPage({
   profile,
   userId,
+  sessionId,
   activeGigs,
   matches,
   totalEscrow,
@@ -55,6 +57,7 @@ export function ChatPage({
   } = useMiloChat({
     profile,
     userId,
+    sessionId,
     onSaveGig,
     onSaveMatches,
     onUpdateMatchDecision,

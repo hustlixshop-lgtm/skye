@@ -1,4 +1,4 @@
-import React, { useEffect, useState } from 'react';
+import { useEffect, useState } from 'react';
 import { Cpu, CheckCircle, Loader2 } from 'lucide-react';
 
 const STEPS = [

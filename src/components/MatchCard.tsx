@@ -1,4 +1,3 @@
-import React from 'react';
 import { MapPin, Clock, DollarSign, Star, CheckCircle, XCircle, Shield, Tag } from 'lucide-react';
 import type { GigMatch } from '../lib/supabase';
 

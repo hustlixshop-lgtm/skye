@@ -1,4 +1,3 @@
-import React from 'react';
 import { Briefcase, Shield, CheckCircle, Clock, XCircle, DollarSign, MapPin, Activity } from 'lucide-react';
 import type { Gig, GigMatch, UserProfile } from '../lib/supabase';
 

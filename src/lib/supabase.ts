@@ -44,6 +44,7 @@ export type Gig = {
   escrow_amount: number;
   escrow_released: boolean;
   webhook_payload: Record<string, unknown> | null;
+  applicant_count: number;
   created_at: string;
   updated_at: string;
 };
@@ -75,5 +76,62 @@ export type ChatMessage = {
   content: string;
   message_type: 'text' | 'match_cards' | 'status' | 'error' | 'telemetry';
   metadata: Record<string, unknown>;
+  session_id: string | null;
+  created_at: string;
+};
+
+export type ChatSession = {
+  id: string;
+  user_id: string;
+  title: string;
+  created_at: string;
+  updated_at: string;
+};
+
+export type Wallet = {
+  id: string;
+  user_id: string;
+  balance: number;
+  created_at: string;
+  updated_at: string;
+};
+
+export type WalletTransaction = {
+  id: string;
+  wallet_id: string;
+  user_id: string;
+  type: 'deposit' | 'escrow_hold' | 'escrow_release' | 'escrow_refund' | 'payment_sent' | 'payment_received';
+  amount: number;
+  reference_id: string | null;
+  description: string;
+  created_at: string;
+};
+
+export type GigApplication = {
+  id: string;
+  gig_id: string;
+  applicant_id: string;
+  applicant_name: string;
+  applicant_avatar_url: string | null;
+  applicant_bio: string;
+  applicant_skills: string[];
+  applicant_campus_location: string;
+  applicant_latitude: number | null;
+  applicant_longitude: number | null;
+  applicant_availability: string;
+  message: string;
+  status: 'pending' | 'accepted' | 'rejected';
+  created_at: string;
+  updated_at: string;
+};
+
+export type Notification = {
+  id: string;
+  user_id: string;
+  type: 'gig_match' | 'gig_application' | 'application_accepted' | 'application_rejected' | 'escrow_held' | 'escrow_released' | 'escrow_refund' | 'payment_received' | 'gig_completed';
+  title: string;
+  body: string;
+  reference_id: string | null;
+  is_read: boolean;
   created_at: string;
 };

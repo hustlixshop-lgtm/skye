@@ -1,5 +1,4 @@
-import React from 'react';
-import { Bell, CheckCircle, XCircle, DollarSign, MapPin, User, Shield, Briefcase, Check } from 'lucide-react';
+import { Bell, CheckCircle, XCircle, DollarSign, MapPin, User, Shield, Briefcase, Check, RotateCcw, Clock } from 'lucide-react';
 import type { Notification } from '../lib/supabase';
 
 type Props = {
@@ -13,20 +12,22 @@ type Props = {
 const typeConfig: Record<Notification['type'], { icon: React.ReactNode; color: string }> = {
   gig_match: { icon: <MapPin className="w-4 h-4" />, color: 'text-cyan-400 bg-cyan-500/10' },
   gig_application: { icon: <User className="w-4 h-4" />, color: 'text-blue-400 bg-blue-500/10' },
-  application_accepted: { icon: <CheckCircle className="w-4 h-4" />, color: 'text-emerald-400 bg-emerald-500/10' },
+  application_accepted: { icon: <CheckCircle className="w-4 h-4" />, color: 'text-brand-400 bg-brand-500/10' },
   application_rejected: { icon: <XCircle className="w-4 h-4" />, color: 'text-rose-400 bg-rose-500/10' },
-  escrow_held: { icon: <Shield className="w-4 h-4" />, color: 'text-amber-400 bg-amber-500/10' },
-  escrow_released: { icon: <CheckCircle className="w-4 h-4" />, color: 'text-emerald-400 bg-emerald-500/10' },
+  escrow_held: { icon: <Shield className="w-4 h-4" />, color: 'text-accent-400 bg-accent-500/10' },
+  escrow_released: { icon: <CheckCircle className="w-4 h-4" />, color: 'text-brand-400 bg-brand-500/10' },
   escrow_refund: { icon: <DollarSign className="w-4 h-4" />, color: 'text-cyan-400 bg-cyan-500/10' },
-  payment_received: { icon: <DollarSign className="w-4 h-4" />, color: 'text-emerald-400 bg-emerald-500/10' },
+  payment_received: { icon: <DollarSign className="w-4 h-4" />, color: 'text-brand-400 bg-brand-500/10' },
   gig_completed: { icon: <Briefcase className="w-4 h-4" />, color: 'text-blue-400 bg-blue-500/10' },
+  gig_completion_pending: { icon: <Clock className="w-4 h-4" />, color: 'text-accent-400 bg-accent-500/10' },
+  gig_redo: { icon: <RotateCcw className="w-4 h-4" />, color: 'text-rose-400 bg-rose-500/10' },
 };
 
 export function NotificationsPanel({ notifications, unreadCount, onMarkRead, onMarkAllRead, onClose }: Props) {
   return (
     <div className="fixed inset-0 z-50 flex">
       <div className="fixed inset-0 bg-black/50 backdrop-blur-sm" onClick={onClose} />
-      <div className="relative ml-auto w-full max-w-md bg-slate-900 border-l border-slate-800/60 flex flex-col h-full animate-in">
+      <div className="relative ml-auto w-full max-w-md bg-surface-900 border-l border-surface-700/40 flex flex-col h-full animate-slide-in-right">
         {/* Header */}
         <div className="flex items-center justify-between px-5 py-4 border-b border-slate-800/60">
           <div className="flex items-center gap-3">

@@ -353,6 +353,52 @@ export function useAppState() {
     setNotifications((prev) => prev.map((n) => ({ ...n, is_read: true })));
   }, [userId]);
 
+  // Contractor marks gig as complete
+  const markGigComplete = useCallback(async (gigId: string, _matchId: string) => {
+    if (!userId) return;
+    await supabase.from('gigs').update({ status: 'in_progress' }).eq('id', gigId);
+    setActiveGigs((prev) => prev.map((g) => g.id === gigId ? { ...g, status: 'in_progress' } : g));
+
+    // Notify the poster that contractor marked complete
+    const gig = activeGigs.find((g) => g.id === gigId);
+    if (gig) {
+      await supabase.from('notifications').insert([{
+        user_id: gig.user_id,
+        type: 'gig_completion_pending',
+        title: 'Gig Completion Pending',
+        body: `Contractor marked the gig "${gig.title}" as complete. Please approve payment or request a redo.`,
+        reference_id: gigId,
+      }]);
+    }
+  }, [userId, activeGigs]);
+
+  // Poster approves payment
+  const approvePayment = useCallback(async (gigId: string, matchId: string, amount: number, recipientId: string) => {
+    if (!userId) return;
+    await releaseEscrowPayment(amount, recipientId, gigId);
+    await supabase.from('gig_matches').update({ escrow_status: 'released' }).eq('id', matchId);
+    setMatches((prev) => prev.map((m) => m.id === matchId ? { ...m, escrow_status: 'released' } : m));
+  }, [userId, releaseEscrowPayment]);
+
+  // Poster requests redo
+  const requestRedo = useCallback(async (gigId: string, matchId: string) => {
+    if (!userId) return;
+    await supabase.from('gigs').update({ status: 'matched' }).eq('id', gigId);
+    setActiveGigs((prev) => prev.map((g) => g.id === gigId ? { ...g, status: 'matched' } : g));
+
+    // Find the contractor's user_id from the match
+    const match = matches.find((m) => m.id === matchId);
+    if (match) {
+      await supabase.from('notifications').insert([{
+        user_id: match.matched_user_id,
+        type: 'gig_redo',
+        title: 'Redo Requested',
+        body: `The poster has requested a redo for the gig. Please continue working.`,
+        reference_id: gigId,
+      }]);
+    }
+  }, [userId, matches]);
+
   const totalEscrow = activeGigs.reduce((sum, g) => sum + (g.escrow_held && !g.escrow_released ? g.escrow_amount : 0), 0);
   const unreadCount = notifications.filter((n) => !n.is_read).length;
 
@@ -365,6 +411,7 @@ export function useAppState() {
     addMessage, saveGig, saveMatches, updateMatchDecision, releaseEscrow,
     depositFunds, holdEscrow, releaseEscrowPayment,
     applyToGig, acceptApplication, rejectApplication,
+    markGigComplete, approvePayment, requestRedo,
     markNotificationRead, markAllNotificationsRead,
   };
 }

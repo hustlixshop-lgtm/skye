@@ -49,6 +49,13 @@ export type Gig = {
   updated_at: string;
 };
 
+export type MatchReasoning = {
+  interest_similarity_weight: number;
+  distance_penalization_factor: number;
+  contextual_boost: number;
+  details: string;
+};
+
 export type GigMatch = {
   id: string;
   gig_id: string;
@@ -63,6 +70,9 @@ export type GigMatch = {
   campus_location: string;
   walk_time_mins: number;
   description: string;
+  distance_miles?: number;
+  interest_tags?: string[];
+  reasoning?: MatchReasoning;
   decision: 'accepted' | 'rejected' | null;
   escrow_status: 'pending' | 'held' | 'released' | 'disputed';
   created_at: string;
@@ -128,7 +138,7 @@ export type GigApplication = {
 export type Notification = {
   id: string;
   user_id: string;
-  type: 'gig_match' | 'gig_application' | 'application_accepted' | 'application_rejected' | 'escrow_held' | 'escrow_released' | 'escrow_refund' | 'payment_received' | 'gig_completed';
+  type: 'gig_match' | 'gig_application' | 'application_accepted' | 'application_rejected' | 'escrow_held' | 'escrow_released' | 'escrow_refund' | 'payment_received' | 'gig_completed' | 'gig_completion_pending' | 'gig_redo';
   title: string;
   body: string;
   reference_id: string | null;

@@ -1,5 +1,5 @@
 import { useState } from 'react';
-import { ArrowLeft, DollarSign, Wallet, TrendingUp, TrendingDown, Shield, CheckCircle, AlertCircle, Clock } from 'lucide-react';
+import { ArrowLeft, DollarSign, Wallet as WalletIcon2, TrendingUp, TrendingDown, Shield, CheckCircle, AlertCircle, Clock } from 'lucide-react';
 import type { Wallet as WalletType, WalletTransaction } from '../lib/supabase';
 
 type Props = {
@@ -79,7 +79,7 @@ export function WalletPage({ wallet, transactions, totalEscrow, onDeposit, onBac
             <div className="bg-gradient-to-br from-slate-800/80 to-slate-900/80 border border-slate-700/50 rounded-2xl p-6">
               <div className="flex items-center gap-3 mb-4">
                 <div className="w-10 h-10 bg-gradient-to-br from-emerald-400 to-cyan-500 rounded-xl flex items-center justify-center">
-                  <Wallet className="w-5 h-5 text-white" />
+                  <WalletIcon2 className="w-5 h-5 text-white" />
                 </div>
                 <div>
                   <p className="text-sm text-slate-400">Available Balance</p>

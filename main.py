@@ -67,7 +67,7 @@ async def process_milo_agent_routing(payload: OutboundWebhookPayload):
     )
     
     try:
-        # Mistral Native Custom Structured Output Parsing Call
+        # 1. Mistral Native Custom Structured Output Parsing Call
         inference_response = mistral_client.chat.parse(
             model="mistral-large-latest",
             messages=[
@@ -78,9 +78,13 @@ async def process_milo_agent_routing(payload: OutboundWebhookPayload):
             temperature=0.0
         )
         
-        guardrail_result = inference_response.choices[0].message.content
+        # FIXED: Access structured object via .parsed attribute directly
+        guardrail_result = inference_response.choices[0].message.parsed
         
-        # Intercept off-topic noise instantly at the gateway layer
+        if not guardrail_result:
+            raise ValueError("Mistral failed to return a valid structured object output format.")
+        
+        # 2. Intercept off-topic noise instantly at the gateway layer
         if not guardrail_result.is_on_topic:
             return {
                 "success": True,
@@ -88,39 +92,46 @@ async def process_milo_agent_routing(payload: OutboundWebhookPayload):
                 "matches": []
             }
             
-        # Execute the Stored Procedure (RPC) inside the database kernel
+        # 3. Clean up the variable payload mapping to prevent Postgres type mismatch crashes
+        target_pay_max = guardrail_result.extracted_pay_max if guardrail_result.extracted_pay_max > 0 else profile.payment_range.max
+        target_skills = [guardrail_result.extracted_category] if guardrail_result.extracted_category else profile.skills_interests
+
+        # 4. Execute the Stored Procedure (RPC) inside the database kernel
         db_response = supabase_client.rpc(
             "match_campus_gigs",
             {
                 "client_location": profile.location,
                 "client_max_walk": profile.max_walk_time_mins,
-                "client_pay_max": guardrail_result.extracted_pay_max if guardrail_result.extracted_pay_max > 0 else profile.payment_range.max,
-                "client_skills": [guardrail_result.extracted_category] if guardrail_result.extracted_category else profile.skills_interests
+                "client_pay_max": int(target_pay_max),
+                "client_skills": target_skills
             }
         ).execute()
         
-        # Format matching payload array to satisfy Bolt's UI layer precisely
+        # 5. Format matching payload array to satisfy Bolt's UI layer precisely (with empty array safe guard)
         formatted_matches = []
-        for match in db_response.data:
+        raw_db_rows = getattr(db_response, 'data', []) or []
+        
+        for match in raw_db_rows:
             formatted_matches.append({
                 "id": str(uuid.uuid4()),
-                "matched_user_name": match.get("matched_user_name"),
+                "matched_user_name": match.get("matched_user_name", "Anonymous Peer"),
                 "matched_user_id": match.get("matched_user_id"),
-                "match_score": match.get("match_score"),
-                "title": f"{guardrail_result.extracted_category} Support",
-                "category": guardrail_result.extracted_category,
+                "match_score": match.get("match_score", 85),
+                "title": f"{guardrail_result.extracted_category or 'Campus'} Support",
+                "category": guardrail_result.extracted_category or "General Task",
                 "pay_min": match.get("pay_min", 15),
                 "pay_max": profile.payment_range.max,
-                "campus_location": match.get("campus_location"),
-                "walk_time_mins": match.get("walk_time_mins"),
-                "description": match.get("description")
+                "campus_location": match.get("campus_location", "Main Campus"),
+                "walk_time_mins": match.get("walk_time_mins", 5),
+                "description": match.get("description", "No description provided.")
             })
             
         return {
             "success": True,
-            "milo_response": f"I have processed your request for '{guardrail_result.extracted_category}' and isolated the top matched campus peers within your walking threshold.",
+            "milo_response": f"I have processed your request for '{guardrail_result.extracted_category or 'your task'}' and isolated the top matched campus peers within your walking threshold.",
             "matches": formatted_matches
         }
         
     except Exception as e:
+        # Return structured message so the UI can log it cleanly
         raise HTTPException(status_code=500, detail=f"Skye Core Routing Error: {str(e)}")

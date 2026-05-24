@@ -1,4 +1,21 @@
+# Python caches
 __pycache__/
 *.pyc
+*.pyo
+*.pyd
+.pytest_cache/
+.venv/
 venv/
+ENV/
+env/
+
+# Environments and Secrets
 .env
+.env.*
+*.env
+
+# Local database locks / IDEs
+*.db
+*.sqlite3
+.vscode/
+.idea/

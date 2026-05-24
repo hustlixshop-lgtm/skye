@@ -54,11 +54,7 @@ export function ChatPage({
   };
 
   const toggleVoice = () => {
-    if (isListening) {
-      recognitionRef.current?.stop();
-      setIsListening(false);
-      return;
-    }
+    if (isListening) { recognitionRef.current?.stop(); setIsListening(false); return; }
     const SpeechRecognition = (window as any).SpeechRecognition || (window as any).webkitSpeechRecognition;
     if (!SpeechRecognition) return;
     const recognition = new SpeechRecognition();
@@ -67,9 +63,7 @@ export function ChatPage({
     recognition.lang = 'en-US';
     recognition.onresult = (event: any) => {
       let transcript = '';
-      for (let i = event.resultIndex; i < event.results.length; i++) {
-        transcript += event.results[i][0].transcript;
-      }
+      for (let i = event.resultIndex; i < event.results.length; i++) transcript += event.results[i][0].transcript;
       setInput(transcript);
     };
     recognition.onend = () => setIsListening(false);
@@ -86,56 +80,57 @@ export function ChatPage({
 
   return (
     <div className="flex h-full">
-      {/* Left Sidebar */}
+      {/* Sidebar */}
       {showSidebar && (
-        <div className="w-80 flex-shrink-0 border-r border-surface-700/40 bg-surface-900/30 flex flex-col">
-          <div className="p-4 border-b border-surface-700/40">
-            <div className="flex gap-2 mb-3">
+        <div className="w-72 flex-shrink-0 border-r border-gray-200 dark:border-gray-800 bg-gray-50 dark:bg-gray-900/50 flex flex-col">
+          <div className="p-3 border-b border-gray-200 dark:border-gray-800">
+            <div className="flex gap-1.5 mb-2">
               {(['browse', 'my-gigs'] as const).map((tab) => (
                 <button key={tab} onClick={() => setActiveTab(tab)}
-                  className={`flex-1 py-2 px-3 rounded-lg text-xs font-semibold transition-all ${activeTab === tab ? 'bg-brand-500/20 text-brand-400 border border-brand-500/30' : 'bg-surface-800/50 text-surface-400 hover:bg-surface-800'}`}>
-                  {tab === 'browse' ? 'Browse Gigs' : 'My Gigs'}
+                  className={`flex-1 py-1.5 px-2 rounded-md text-xs font-medium transition-colors ${
+                    activeTab === tab ? 'bg-brand-500 text-white' : 'bg-white dark:bg-gray-800 text-gray-500 dark:text-gray-400 hover:bg-gray-100 dark:hover:bg-gray-700'
+                  }`}>
+                  {tab === 'browse' ? 'Browse' : 'My Gigs'}
                 </button>
               ))}
             </div>
             {totalEscrow > 0 && (
-              <div className="p-3 bg-accent-500/10 border border-accent-500/20 rounded-xl">
-                <div className="flex items-center gap-2">
-                  <Shield className="w-4 h-4 text-accent-400" />
-                  <span className="text-xs text-accent-400 font-semibold">Escrow: ${totalEscrow.toFixed(2)}</span>
+              <div className="p-2 bg-amber-50 dark:bg-amber-500/10 border border-amber-200 dark:border-amber-500/20 rounded-lg">
+                <div className="flex items-center gap-1.5">
+                  <Shield className="w-3.5 h-3.5 text-amber-600 dark:text-amber-400" />
+                  <span className="text-xs text-amber-700 dark:text-amber-400 font-medium">Escrow: ${totalEscrow.toFixed(2)}</span>
                 </div>
               </div>
             )}
           </div>
 
-          <div className="flex-1 overflow-y-auto p-4 space-y-3">
+          <div className="flex-1 overflow-y-auto p-3 space-y-2">
             {activeTab === 'browse' ? (
               <>
-                <h3 className="text-xs font-bold text-surface-500 uppercase tracking-wider mb-2">Available Near You</h3>
+                <h3 className="text-[10px] font-bold text-gray-400 dark:text-gray-500 uppercase tracking-wider mb-1">Available</h3>
                 {activeGigs.filter((g) => g.type === 'post' && g.status === 'open').length === 0 ? (
-                  <p className="text-xs text-surface-600">No gigs available. Ask Milo to search!</p>
+                  <p className="text-xs text-gray-400 dark:text-gray-500">No gigs available. Ask Milo!</p>
                 ) : (
                   activeGigs.filter((g) => g.type === 'post' && g.status === 'open').slice(0, 5).map((gig) => (
-                    <div key={gig.id} className="p-3 bg-surface-800/40 rounded-xl border border-surface-700/40 card-hover">
-                      <p className="text-sm text-white font-semibold truncate">{gig.title}</p>
-                      <p className="text-xs text-surface-400 mt-1">{gig.category}</p>
-                      <div className="flex items-center gap-3 mt-2">
-                        <span className="flex items-center gap-1 text-xs text-surface-500"><DollarSign className="w-3 h-3 text-brand-400" />${gig.pay_min} - ${gig.pay_max}</span>
-                        <span className="flex items-center gap-1 text-xs text-surface-500"><MapPin className="w-3 h-3 text-cyan-400" />{gig.campus_location || 'Campus'}</span>
+                    <div key={gig.id} className="p-2.5 bg-white dark:bg-gray-800/50 rounded-lg border border-gray-100 dark:border-gray-800 card-hover">
+                      <p className="text-xs text-gray-900 dark:text-white font-medium truncate">{gig.title}</p>
+                      <p className="text-[10px] text-gray-400 mt-0.5">{gig.category}</p>
+                      <div className="flex items-center gap-2 mt-1">
+                        <span className="flex items-center gap-0.5 text-[10px] text-gray-400"><DollarSign className="w-2.5 h-2.5 text-brand-500" />${gig.pay_min}-${gig.pay_max}</span>
+                        <span className="flex items-center gap-0.5 text-[10px] text-gray-400"><MapPin className="w-2.5 h-2.5 text-gray-400" />{gig.campus_location || 'Campus'}</span>
                       </div>
                     </div>
                   ))
                 )}
                 {pendingMatches.length > 0 && (
                   <>
-                    <h3 className="text-xs font-bold text-surface-500 uppercase tracking-wider mt-4 mb-2">Pending Matches</h3>
+                    <h3 className="text-[10px] font-bold text-gray-400 uppercase tracking-wider mt-3 mb-1">Pending</h3>
                     {pendingMatches.map((m) => (
-                      <div key={m.id} className="p-3 bg-accent-500/10 rounded-xl border border-accent-500/30">
+                      <div key={m.id} className="p-2.5 bg-amber-50 dark:bg-amber-500/5 rounded-lg border border-amber-200 dark:border-amber-500/20">
                         <div className="flex items-center justify-between">
-                          <span className="text-sm text-white font-semibold">{m.matched_user_name}</span>
-                          <span className="text-xs text-accent-400 font-bold">{m.match_score}%</span>
+                          <span className="text-xs text-gray-900 dark:text-white font-medium">{m.matched_user_name}</span>
+                          <span className="text-[10px] text-amber-600 dark:text-amber-400 font-bold">{m.match_score}%</span>
                         </div>
-                        <p className="text-xs text-surface-400 mt-1">{m.title}</p>
                       </div>
                     ))}
                   </>
@@ -143,31 +138,29 @@ export function ChatPage({
               </>
             ) : (
               <>
-                <h3 className="text-xs font-bold text-surface-500 uppercase tracking-wider mb-2">Your Active Gigs</h3>
+                <h3 className="text-[10px] font-bold text-gray-400 uppercase tracking-wider mb-1">Your Gigs</h3>
                 {activeGigs.length === 0 ? (
-                  <p className="text-xs text-surface-600">No active gigs. Tell Milo what you need!</p>
+                  <p className="text-xs text-gray-400">No active gigs. Tell Milo what you need!</p>
                 ) : (
                   activeGigs.slice(0, 10).map((gig) => (
-                    <div key={gig.id} className="p-3 bg-surface-800/40 rounded-xl border border-surface-700/40">
-                      <div className="flex items-center gap-2 mb-1">
-                        <span className={`w-2 h-2 rounded-full ${gig.status === 'open' ? 'bg-surface-400' : gig.status === 'matched' ? 'bg-brand-400' : gig.status === 'in_progress' ? 'bg-cyan-400' : 'bg-blue-400'}`} />
-                        <span className="text-xs text-surface-400 capitalize">{gig.status.replace('_', ' ')}</span>
+                    <div key={gig.id} className="p-2.5 bg-white dark:bg-gray-800/50 rounded-lg border border-gray-100 dark:border-gray-800">
+                      <div className="flex items-center gap-1.5 mb-0.5">
+                        <span className={`w-1.5 h-1.5 rounded-full ${gig.status === 'open' ? 'bg-gray-300 dark:bg-gray-600' : gig.status === 'matched' ? 'bg-brand-500' : gig.status === 'in_progress' ? 'bg-cyan-500' : 'bg-blue-500'}`} />
+                        <span className="text-[10px] text-gray-400 capitalize">{gig.status.replace('_', ' ')}</span>
                       </div>
-                      <p className="text-sm text-white font-semibold truncate">{gig.title}</p>
-                      <p className="text-xs text-surface-500 mt-1">{gig.category}</p>
+                      <p className="text-xs text-gray-900 dark:text-white font-medium truncate">{gig.title}</p>
                     </div>
                   ))
                 )}
                 {acceptedMatches.length > 0 && (
                   <>
-                    <h3 className="text-xs font-bold text-surface-500 uppercase tracking-wider mt-4 mb-2">Accepted</h3>
+                    <h3 className="text-[10px] font-bold text-gray-400 uppercase tracking-wider mt-3 mb-1">Accepted</h3>
                     {acceptedMatches.map((m) => (
-                      <div key={m.id} className="p-3 bg-brand-500/10 rounded-xl border border-brand-500/30">
+                      <div key={m.id} className="p-2.5 bg-brand-50 dark:bg-brand-500/5 rounded-lg border border-brand-200 dark:border-brand-500/20">
                         <div className="flex items-center justify-between">
-                          <span className="text-sm text-white font-semibold">{m.matched_user_name}</span>
-                          <span className="text-xs text-brand-400 font-semibold">{m.escrow_status}</span>
+                          <span className="text-xs text-gray-900 dark:text-white font-medium">{m.matched_user_name}</span>
+                          <span className="text-[10px] text-brand-600 dark:text-brand-400 font-medium">{m.escrow_status}</span>
                         </div>
-                        <p className="text-xs text-surface-400 mt-1">{m.title}</p>
                       </div>
                     ))}
                   </>
@@ -178,45 +171,44 @@ export function ChatPage({
         </div>
       )}
 
-      {/* Main Chat Area */}
+      {/* Main Chat */}
       <div className="flex-1 flex flex-col min-w-0">
-        {/* Header */}
-        <div className="flex items-center justify-between px-4 py-3 border-b border-surface-700/40 glass-light">
-          <div className="flex items-center gap-3">
-            <button onClick={() => setShowSidebar(!showSidebar)} className="lg:hidden p-2 hover:bg-surface-800 rounded-lg transition-all">
-              <Menu className="w-4 h-4 text-surface-400" />
+        <div className="flex items-center justify-between px-3 py-2 border-b border-gray-200 dark:border-gray-800 bg-white dark:bg-gray-900">
+          <div className="flex items-center gap-2">
+            <button onClick={() => setShowSidebar(!showSidebar)} className="lg:hidden p-1.5 hover:bg-gray-100 dark:hover:bg-gray-800 rounded-md transition-colors">
+              <Menu className="w-4 h-4 text-gray-400" />
             </button>
             <div className="flex items-center gap-2">
-              <div className="w-8 h-8 bg-gradient-to-br from-brand-400 to-brand-600 rounded-lg flex items-center justify-center shadow-glow">
-                <Bot className="w-4 h-4 text-white" />
+              <div className="w-7 h-7 bg-brand-500 rounded-lg flex items-center justify-center">
+                <Bot className="w-3.5 h-3.5 text-white" />
               </div>
               <div>
-                <h2 className="text-sm font-bold text-white">Milo</h2>
-                <p className="text-xs text-brand-400 font-medium">Agentic Concierge</p>
+                <h2 className="text-xs font-bold text-gray-900 dark:text-white">Milo</h2>
+                <p className="text-[10px] text-brand-500 font-medium">Agentic Concierge</p>
               </div>
             </div>
           </div>
-          <div className="flex items-center gap-2">
-            <div className="hidden sm:flex items-center gap-2 px-3 py-1.5 bg-surface-800/50 rounded-lg border border-surface-700/50">
-              <Sparkles className="w-3.5 h-3.5 text-accent-400" />
-              <span className="text-xs text-surface-400 font-medium">AI-Powered</span>
-            </div>
-            <button onClick={onOpenSettings} className="p-2 hover:bg-surface-800 rounded-lg transition-all">
-              <Settings className="w-4 h-4 text-surface-400" />
+          <div className="flex items-center gap-1.5">
+            <span className="hidden sm:flex items-center gap-1 px-2 py-1 bg-amber-50 dark:bg-amber-500/10 border border-amber-200 dark:border-amber-500/20 rounded-md">
+              <Sparkles className="w-3 h-3 text-amber-500" />
+              <span className="text-[10px] text-amber-600 dark:text-amber-400 font-medium">AI</span>
+            </span>
+            <button onClick={onOpenSettings} className="p-1.5 hover:bg-gray-100 dark:hover:bg-gray-800 rounded-md transition-colors">
+              <Settings className="w-3.5 h-3.5 text-gray-400" />
             </button>
           </div>
         </div>
 
         {/* Messages */}
-        <div className="flex-1 overflow-y-auto px-4 py-4 space-y-4 min-h-0">
+        <div className="flex-1 overflow-y-auto px-4 py-3 space-y-3 min-h-0 bg-white dark:bg-gray-950">
           {entries.map((entry) => {
             const isAgent = entry.role === 'agent';
 
             if (entry.type === 'telemetry') {
               return (
-                <div key={entry.id} className="flex gap-3">
-                  <div className="w-7 h-7 bg-gradient-to-br from-brand-400 to-brand-600 rounded-lg flex items-center justify-center flex-shrink-0 mt-0.5">
-                    <Bot className="w-4 h-4 text-white" />
+                <div key={entry.id} className="flex gap-2">
+                  <div className="w-6 h-6 bg-brand-500 rounded-md flex items-center justify-center flex-shrink-0 mt-0.5">
+                    <Bot className="w-3 h-3 text-white" />
                   </div>
                   <div className="flex-1 max-w-[85%]"><TelemetryCard /></div>
                 </div>
@@ -225,12 +217,12 @@ export function ChatPage({
 
             if (entry.type === 'match_cards' && entry.matches) {
               return (
-                <div key={entry.id} className="flex gap-3">
-                  <div className="w-7 h-7 bg-gradient-to-br from-brand-400 to-brand-600 rounded-lg flex items-center justify-center flex-shrink-0 mt-0.5">
-                    <Bot className="w-4 h-4 text-white" />
+                <div key={entry.id} className="flex gap-2">
+                  <div className="w-6 h-6 bg-brand-500 rounded-md flex items-center justify-center flex-shrink-0 mt-0.5">
+                    <Bot className="w-3 h-3 text-white" />
                   </div>
-                  <div className="flex-1 max-w-[92%] space-y-3">
-                    <p className="text-xs text-surface-500 font-bold">{entry.matches.length} match{entry.matches.length !== 1 ? 'es' : ''} found</p>
+                  <div className="flex-1 max-w-[92%] space-y-2">
+                    <p className="text-[10px] text-gray-400 font-bold">{entry.matches.length} match{entry.matches.length !== 1 ? 'es' : ''} found</p>
                     {entry.matches.map((m) => (
                       <MatchCard key={m.id} match={m} gigLocked={gigLocked} chosenWorker={m.decision === 'accepted'}
                         onAccept={(id) => void handleAcceptMatch(id, entry.matches!)}
@@ -243,30 +235,30 @@ export function ChatPage({
             }
 
             return (
-              <div key={entry.id} className={`flex gap-3 ${isAgent ? '' : 'flex-row-reverse'}`}>
-                <div className={`w-7 h-7 rounded-lg flex items-center justify-center flex-shrink-0 mt-0.5 ${isAgent ? 'bg-gradient-to-br from-brand-400 to-brand-600' : 'bg-surface-700'}`}>
-                  {isAgent ? <Bot className="w-4 h-4 text-white" /> : <User className="w-4 h-4 text-surface-300" />}
+              <div key={entry.id} className={`flex gap-2 ${isAgent ? '' : 'flex-row-reverse'}`}>
+                <div className={`w-6 h-6 rounded-md flex items-center justify-center flex-shrink-0 mt-0.5 ${isAgent ? 'bg-brand-500' : 'bg-gray-200 dark:bg-gray-700'}`}>
+                  {isAgent ? <Bot className="w-3 h-3 text-white" /> : <User className="w-3 h-3 text-gray-500 dark:text-gray-300" />}
                 </div>
-                <div className={`max-w-[80%] px-4 py-3 rounded-2xl text-sm leading-relaxed ${
+                <div className={`max-w-[80%] px-3 py-2 rounded-xl text-sm leading-relaxed ${
                   isAgent
-                    ? entry.type === 'error' ? 'bg-rose-500/10 border border-rose-500/30 text-rose-300 rounded-tl-sm'
-                      : entry.type === 'status' ? 'bg-brand-500/10 border border-brand-500/30 text-brand-300 rounded-tl-sm'
-                      : 'bg-surface-800/80 text-surface-200 rounded-tl-sm'
-                    : 'bg-gradient-to-br from-brand-500 to-brand-600 text-white rounded-tr-sm'
+                    ? entry.type === 'error' ? 'bg-red-50 dark:bg-red-500/10 border border-red-200 dark:border-red-500/20 text-red-700 dark:text-red-300 rounded-tl-sm'
+                      : entry.type === 'status' ? 'bg-brand-50 dark:bg-brand-500/10 border border-brand-200 dark:border-brand-500/20 text-brand-700 dark:text-brand-300 rounded-tl-sm'
+                      : 'bg-gray-100 dark:bg-gray-800 text-gray-700 dark:text-gray-200 rounded-tl-sm'
+                    : 'bg-brand-500 text-white rounded-tr-sm'
                 }`} dangerouslySetInnerHTML={{ __html: renderMarkdown(entry.content) }} />
               </div>
             );
           })}
 
           {isThinking && (
-            <div className="flex gap-3">
-              <div className="w-7 h-7 bg-gradient-to-br from-brand-400 to-brand-600 rounded-lg flex items-center justify-center flex-shrink-0">
-                <Bot className="w-4 h-4 text-white" />
+            <div className="flex gap-2">
+              <div className="w-6 h-6 bg-brand-500 rounded-md flex items-center justify-center flex-shrink-0">
+                <Bot className="w-3 h-3 text-white" />
               </div>
-              <div className="px-4 py-3 bg-surface-800/80 rounded-2xl rounded-tl-sm">
-                <div className="flex gap-1.5 items-center h-4">
+              <div className="px-3 py-2 bg-gray-100 dark:bg-gray-800 rounded-xl rounded-tl-sm">
+                <div className="flex gap-1 items-center h-3">
                   {[0, 150, 300].map((d) => (
-                    <div key={d} className="w-2 h-2 bg-brand-400 rounded-full animate-bounce" style={{ animationDelay: `${d}ms` }} />
+                    <div key={d} className="w-1.5 h-1.5 bg-brand-500 rounded-full animate-bounce" style={{ animationDelay: `${d}ms` }} />
                   ))}
                 </div>
               </div>
@@ -275,27 +267,26 @@ export function ChatPage({
           <div ref={bottomRef} />
         </div>
 
-        {/* Input with Voice Typing */}
-        <div className="px-4 pb-4 pt-2 border-t border-surface-700/40">
-          <div className="flex gap-2 items-end">
+        {/* Input */}
+        <div className="px-3 pb-3 pt-2 border-t border-gray-200 dark:border-gray-800 bg-white dark:bg-gray-900">
+          <div className="flex gap-1.5 items-end">
             <div className="flex-1 relative">
               <textarea ref={inputRef} value={input} onChange={(e) => setInput(e.target.value)} onKeyDown={handleKey}
                 placeholder="Message Milo..." rows={1}
-                className="w-full px-4 py-3 bg-surface-800/60 border border-surface-700/60 hover:border-surface-600 focus:border-brand-500/60 focus:ring-2 focus:ring-brand-500/20 rounded-xl text-white placeholder-surface-500 text-sm resize-none focus:outline-none transition-all"
-                style={{ minHeight: '48px', maxHeight: '120px' }}
-                onInput={(e) => { const el = e.currentTarget; el.style.height = 'auto'; el.style.height = Math.min(el.scrollHeight, 120) + 'px'; }} />
+                className="w-full px-3 py-2.5 bg-gray-50 dark:bg-gray-800 border border-gray-200 dark:border-gray-700 focus:border-brand-500 focus:ring-1 focus:ring-brand-500/20 rounded-lg text-gray-900 dark:text-white placeholder-gray-400 dark:placeholder-gray-500 text-sm resize-none focus:outline-none transition-all"
+                style={{ minHeight: '42px', maxHeight: '100px' }}
+                onInput={(e) => { const el = e.currentTarget; el.style.height = 'auto'; el.style.height = Math.min(el.scrollHeight, 100) + 'px'; }} />
             </div>
             <button onClick={toggleVoice}
-              className={`w-11 h-11 flex items-center justify-center rounded-xl transition-all flex-shrink-0 ${isListening ? 'bg-rose-500 hover:bg-rose-400 shadow-lg shadow-rose-500/30 animate-pulse' : 'bg-surface-700 hover:bg-surface-600'}`}
-              title={isListening ? 'Stop listening' : 'Voice typing'}>
-              {isListening ? <MicOff className="w-4 h-4 text-white" /> : <Mic className="w-4 h-4 text-surface-300" />}
+              className={`w-9 h-9 flex items-center justify-center rounded-lg transition-all flex-shrink-0 ${isListening ? 'bg-red-500 text-white animate-pulse' : 'bg-gray-100 dark:bg-gray-800 text-gray-400 hover:bg-gray-200 dark:hover:bg-gray-700'}`}
+              title={isListening ? 'Stop' : 'Voice'}>
+              {isListening ? <MicOff className="w-4 h-4" /> : <Mic className="w-4 h-4" />}
             </button>
             <button onClick={submit} disabled={!input.trim() || isThinking}
-              className="w-11 h-11 flex items-center justify-center bg-gradient-to-br from-brand-500 to-brand-600 hover:from-brand-400 hover:to-brand-500 disabled:from-surface-700 disabled:to-surface-700 disabled:cursor-not-allowed rounded-xl transition-all shadow-glow disabled:shadow-none flex-shrink-0">
-              <Send className="w-4 h-4 text-white" />
+              className="w-9 h-9 flex items-center justify-center bg-brand-500 hover:bg-brand-600 disabled:bg-gray-200 dark:disabled:bg-gray-700 disabled:cursor-not-allowed rounded-lg transition-all flex-shrink-0">
+              <Send className="w-4 h-4 text-white disabled:text-gray-400" />
             </button>
           </div>
-          <p className="text-xs text-surface-600 mt-2 text-center">Enter to send - Shift+Enter for new line - Mic for voice</p>
         </div>
       </div>
     </div>

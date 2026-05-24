@@ -11,7 +11,7 @@ const SKILL_TAGS = [
 ];
 
 const WALK_TIMES: { label: string; value: 10 | 20 | 40 }[] = [
-  { label: 'Less than a 10 min walk', value: 10 },
+  { label: '< 10 min walk', value: 10 },
   { label: '10-20 min walk', value: 20 },
   { label: '20+ min walk', value: 40 },
 ];
@@ -49,173 +49,114 @@ export function OnboardingWizard({ onComplete }: Props) {
 
   const handleFinish = () => {
     onComplete({
-      name: name.trim(),
-      role,
-      campus_location: location.trim(),
-      max_walk_time_mins: walkTime,
-      pay_min: payMin,
-      pay_max: payMax,
-      skills_interests: skills,
-      onboarding_complete: true,
-      avatar_url: null,
-      bio: '',
-      latitude: null,
-      longitude: null,
-      skills: [],
-      availability: 'flexible',
+      name: name.trim(), role, campus_location: location.trim(), max_walk_time_mins: walkTime,
+      pay_min: payMin, pay_max: payMax, skills_interests: skills, onboarding_complete: true,
+      avatar_url: null, bio: '', latitude: null, longitude: null, skills: [], availability: 'flexible',
     });
   };
 
   const steps = [
-    {
-      icon: <User className="w-6 h-6 text-brand-400" />,
-      title: 'Welcome to Milo',
-      subtitle: 'Your campus gig concierge',
-      content: (
-        <div className="space-y-4">
-          <p className="text-surface-400 text-sm">Set up your profile in 60 seconds.</p>
-          <div>
-            <label className="block text-sm font-medium text-surface-300 mb-1.5">Your Name</label>
-            <input type="text" value={name} onChange={(e) => setName(e.target.value)} placeholder="e.g. Alex Chen"
-              className="w-full px-4 py-3 bg-surface-800 border border-surface-700 rounded-xl text-white placeholder-surface-500 focus:outline-none focus:ring-2 focus:ring-brand-500/40 focus:border-brand-500/60 transition-all" autoFocus />
-          </div>
-          <div>
-            <label className="block text-sm font-medium text-surface-300 mb-1.5">I want to...</label>
-            <div className="grid grid-cols-3 gap-2">
-              {ROLES.map((r) => (
-                <button key={r.value} onClick={() => setRole(r.value)}
-                  className={`p-3 rounded-xl border text-left transition-all ${role === r.value ? 'border-brand-500 bg-brand-500/10 text-white' : 'border-surface-700 bg-surface-800/50 text-surface-400 hover:border-surface-600'}`}>
-                  <div className="font-semibold text-sm">{r.label}</div>
-                  <div className="text-xs text-surface-500 mt-0.5">{r.desc}</div>
-                </button>
-              ))}
-            </div>
-          </div>
+    { icon: <User className="w-5 h-5 text-brand-500" />, title: 'Welcome', subtitle: 'Set up in 60 seconds', content: (
+      <div className="space-y-3">
+        <div>
+          <label className="block text-xs font-medium text-gray-600 dark:text-gray-300 mb-1">Your Name</label>
+          <input type="text" value={name} onChange={(e) => setName(e.target.value)} placeholder="e.g. Alex Chen"
+            className="w-full px-3 py-2.5 bg-gray-50 dark:bg-gray-800 border border-gray-200 dark:border-gray-700 rounded-lg text-sm text-gray-900 dark:text-white placeholder-gray-400 focus:outline-none focus:ring-2 focus:ring-brand-500/20 focus:border-brand-400 transition-all" autoFocus />
         </div>
-      ),
-    },
-    {
-      icon: <Clock className="w-6 h-6 text-cyan-400" />,
-      title: 'Proximity',
-      subtitle: 'How far are you willing to go?',
-      content: (
-        <div className="space-y-3">
-          {WALK_TIMES.map((wt) => (
-            <button key={wt.value} onClick={() => setWalkTime(wt.value)}
-              className={`w-full p-4 rounded-xl border text-left transition-all flex items-center justify-between ${walkTime === wt.value ? 'border-brand-500 bg-brand-500/10 text-white' : 'border-surface-700 bg-surface-800/50 text-surface-400 hover:border-surface-600'}`}>
-              <span className="text-sm">{wt.label}</span>
-              {walkTime === wt.value && <div className="w-2 h-2 rounded-full bg-brand-400" />}
-            </button>
-          ))}
-        </div>
-      ),
-    },
-    {
-      icon: <MapPin className="w-6 h-6 text-brand-400" />,
-      title: 'Campus Location',
-      subtitle: 'Where are you based?',
-      content: (
-        <div className="space-y-4">
-          <input type="text" value={location} onChange={(e) => setLocation(e.target.value)} placeholder="e.g. East Hall, North Campus..."
-            className="w-full px-4 py-3 bg-surface-800 border border-surface-700 rounded-xl text-white placeholder-surface-500 focus:outline-none focus:ring-2 focus:ring-brand-500/40 focus:border-brand-500/60 transition-all" autoFocus />
-          <div className="flex flex-wrap gap-2">
-            {['East Hall', 'North Campus', 'Student Union', 'Library', 'Engineering Quad', 'South Dorms'].map((loc) => (
-              <button key={loc} onClick={() => setLocation(loc)}
-                className="px-3 py-1.5 text-xs bg-surface-800 hover:bg-surface-700 border border-surface-700 hover:border-surface-600 rounded-lg text-surface-400 hover:text-white transition-all">{loc}</button>
-            ))}
-          </div>
-        </div>
-      ),
-    },
-    {
-      icon: <DollarSign className="w-6 h-6 text-accent-400" />,
-      title: 'Pay Range',
-      subtitle: 'Your expected hourly rates',
-      content: (
-        <div className="space-y-6">
-          <div>
-            <div className="flex items-center justify-between mb-2">
-              <label className="text-sm font-medium text-surface-300">Minimum</label>
-              <span className="text-brand-400 font-mono font-semibold">${payMin}/hr</span>
-            </div>
-            <input type="range" min={5} max={100} step={5} value={payMin} onChange={(e) => setPayMin(Number(e.target.value))} className="w-full accent-brand-500" />
-          </div>
-          <div>
-            <div className="flex items-center justify-between mb-2">
-              <label className="text-sm font-medium text-surface-300">Maximum</label>
-              <span className="text-brand-400 font-mono font-semibold">${payMax}/hr</span>
-            </div>
-            <input type="range" min={5} max={200} step={5} value={payMax} onChange={(e) => setPayMax(Math.max(Number(e.target.value), payMin))} className="w-full accent-brand-500" />
-          </div>
-          <div className="p-3 bg-surface-800/50 rounded-xl border border-surface-700 text-center">
-            <span className="text-surface-400 text-sm">Range: </span>
-            <span className="text-white font-bold">${payMin} - ${payMax} / hr</span>
-          </div>
-        </div>
-      ),
-    },
-    {
-      icon: <Tag className="w-6 h-6 text-accent-400" />,
-      title: 'Skills & Interests',
-      subtitle: 'What are you into?',
-      content: (
-        <div className="space-y-3">
-          <div className="flex flex-wrap gap-2 max-h-64 overflow-y-auto pr-1">
-            {SKILL_TAGS.map((tag) => (
-              <button key={tag} onClick={() => toggleSkill(tag)}
-                className={`px-3 py-1.5 text-sm rounded-full border transition-all ${skills.includes(tag) ? 'border-brand-500 bg-brand-500/20 text-brand-300' : 'border-surface-700 bg-surface-800/50 text-surface-400 hover:border-surface-600 hover:text-white'}`}>
-                {tag}
+        <div>
+          <label className="block text-xs font-medium text-gray-600 dark:text-gray-300 mb-1.5">I want to...</label>
+          <div className="grid grid-cols-3 gap-1.5">
+            {ROLES.map((r) => (
+              <button key={r.value} onClick={() => setRole(r.value)}
+                className={`p-2.5 rounded-lg border text-left transition-all ${role === r.value ? 'border-brand-400 bg-brand-50 dark:bg-brand-500/10 text-gray-900 dark:text-white' : 'border-gray-200 dark:border-gray-700 bg-gray-50 dark:bg-gray-800 text-gray-400 hover:border-gray-300'}`}>
+                <div className="font-medium text-xs">{r.label}</div>
+                <div className="text-[10px] text-gray-400 mt-0.5">{r.desc}</div>
               </button>
             ))}
           </div>
-          {skills.length > 0 && <p className="text-xs text-surface-500">{skills.length} selected</p>}
         </div>
-      ),
-    },
+      </div>
+    )},
+    { icon: <Clock className="w-5 h-5 text-cyan-500" />, title: 'Proximity', subtitle: 'How far will you go?', content: (
+      <div className="space-y-2">
+        {WALK_TIMES.map((wt) => (
+          <button key={wt.value} onClick={() => setWalkTime(wt.value)}
+            className={`w-full p-3 rounded-lg border text-left transition-all flex items-center justify-between text-sm ${walkTime === wt.value ? 'border-brand-400 bg-brand-50 dark:bg-brand-500/10 text-gray-900 dark:text-white' : 'border-gray-200 dark:border-gray-700 bg-gray-50 dark:bg-gray-800 text-gray-400'}`}>
+            {wt.label} {walkTime === wt.value && <div className="w-1.5 h-1.5 rounded-full bg-brand-500" />}
+          </button>
+        ))}
+      </div>
+    )},
+    { icon: <MapPin className="w-5 h-5 text-brand-500" />, title: 'Location', subtitle: 'Where are you based?', content: (
+      <div className="space-y-3">
+        <input type="text" value={location} onChange={(e) => setLocation(e.target.value)} placeholder="e.g. East Hall, North Campus..."
+          className="w-full px-3 py-2.5 bg-gray-50 dark:bg-gray-800 border border-gray-200 dark:border-gray-700 rounded-lg text-sm text-gray-900 dark:text-white placeholder-gray-400 focus:outline-none focus:ring-2 focus:ring-brand-500/20 focus:border-brand-400 transition-all" autoFocus />
+        <div className="flex flex-wrap gap-1.5">
+          {['East Hall', 'North Campus', 'Student Union', 'Library', 'Engineering Quad', 'South Dorms'].map((loc) => (
+            <button key={loc} onClick={() => setLocation(loc)}
+              className="px-2 py-1 text-[10px] bg-gray-100 dark:bg-gray-800 hover:bg-brand-50 dark:hover:bg-brand-500/10 border border-gray-200 dark:border-gray-700 rounded text-gray-500 hover:text-brand-600 dark:hover:text-brand-400 transition-colors">{loc}</button>
+          ))}
+        </div>
+      </div>
+    )},
+    { icon: <DollarSign className="w-5 h-5 text-amber-500" />, title: 'Pay Range', subtitle: 'Expected hourly rates', content: (
+      <div className="space-y-4">
+        <div>
+          <div className="flex items-center justify-between mb-1"><label className="text-xs text-gray-500">Minimum</label><span className="text-xs text-brand-600 dark:text-brand-400 font-mono font-semibold">${payMin}/hr</span></div>
+          <input type="range" min={5} max={100} step={5} value={payMin} onChange={(e) => setPayMin(Number(e.target.value))} className="w-full accent-brand-500" />
+        </div>
+        <div>
+          <div className="flex items-center justify-between mb-1"><label className="text-xs text-gray-500">Maximum</label><span className="text-xs text-brand-600 dark:text-brand-400 font-mono font-semibold">${payMax}/hr</span></div>
+          <input type="range" min={5} max={200} step={5} value={payMax} onChange={(e) => setPayMax(Math.max(Number(e.target.value), payMin))} className="w-full accent-brand-500" />
+        </div>
+        <div className="p-2.5 bg-gray-50 dark:bg-gray-800 rounded-lg border border-gray-200 dark:border-gray-700 text-center">
+          <span className="text-xs text-gray-400">Range: </span><span className="text-sm text-gray-900 dark:text-white font-bold">${payMin} - ${payMax}</span>
+        </div>
+      </div>
+    )},
+    { icon: <Tag className="w-5 h-5 text-amber-500" />, title: 'Skills & Interests', subtitle: 'What are you into?', content: (
+      <div className="space-y-2">
+        <div className="flex flex-wrap gap-1.5 max-h-56 overflow-y-auto pr-1">
+          {SKILL_TAGS.map((tag) => (
+            <button key={tag} onClick={() => toggleSkill(tag)}
+              className={`px-2 py-1 text-xs rounded-md border transition-all ${skills.includes(tag) ? 'border-brand-400 bg-brand-50 dark:bg-brand-500/10 text-brand-600 dark:text-brand-400' : 'border-gray-200 dark:border-gray-700 bg-gray-50 dark:bg-gray-800 text-gray-400 hover:border-gray-300'}`}>
+              {tag}
+            </button>
+          ))}
+        </div>
+        {skills.length > 0 && <p className="text-[10px] text-gray-400">{skills.length} selected</p>}
+      </div>
+    )},
   ];
 
   const current = steps[step];
   const isLast = step === steps.length - 1;
 
   return (
-    <div className="h-screen bg-surface-950 flex items-center justify-center p-4 overflow-y-auto">
-      <div className="w-full max-w-lg my-8">
-        <div className="flex items-center gap-3 mb-8">
-          <div className="w-10 h-10 bg-gradient-to-br from-brand-400 to-brand-600 rounded-2xl flex items-center justify-center shadow-glow">
-            <Sparkles className="w-5 h-5 text-white" />
+    <div className="h-screen bg-gray-50 dark:bg-gray-950 flex items-center justify-center p-4 overflow-y-auto">
+      <div className="w-full max-w-md my-6">
+        <div className="flex items-center gap-2.5 mb-6">
+          <div className="w-9 h-9 bg-brand-500 rounded-xl flex items-center justify-center">
+            <Sparkles className="w-4 h-4 text-white" />
           </div>
-          <div>
-            <h1 className="text-xl font-extrabold text-white tracking-tight">Milo</h1>
-            <p className="text-xs text-surface-400">Campus Gig Marketplace</p>
-          </div>
+          <div><h1 className="text-lg font-bold text-gray-900 dark:text-white">Milo</h1><p className="text-[10px] text-gray-400">Campus Gig Marketplace</p></div>
         </div>
-
-        <div className="flex gap-1.5 mb-8">
-          {steps.map((_, i) => (
-            <div key={i} className={`h-1 rounded-full flex-1 transition-all duration-300 ${i <= step ? 'bg-brand-500' : 'bg-surface-700'}`} />
-          ))}
-        </div>
-
-        <div className="glass rounded-2xl border border-surface-700/50 p-8">
-          <div className="flex items-center gap-3 mb-6">
-            <div className="p-2.5 bg-surface-800 rounded-xl">{current.icon}</div>
-            <div>
-              <h2 className="text-xl font-bold text-white">{current.title}</h2>
-              <p className="text-sm text-surface-400">{current.subtitle}</p>
-            </div>
+        <div className="flex gap-1 mb-6">{steps.map((_, i) => (<div key={i} className={`h-1 rounded-full flex-1 transition-all duration-300 ${i <= step ? 'bg-brand-500' : 'bg-gray-200 dark:bg-gray-700'}`} />))}</div>
+        <div className="bg-white dark:bg-gray-900 rounded-xl border border-gray-200 dark:border-gray-800 p-6">
+          <div className="flex items-center gap-2 mb-4">
+            <div className="p-2 bg-gray-50 dark:bg-gray-800 rounded-lg">{current.icon}</div>
+            <div><h2 className="text-base font-bold text-gray-900 dark:text-white">{current.title}</h2><p className="text-xs text-gray-400">{current.subtitle}</p></div>
           </div>
           {current.content}
-          <div className="flex items-center justify-between mt-8">
-            <button onClick={() => setStep((s) => s - 1)} disabled={step === 0}
-              className="px-4 py-2 text-sm text-surface-400 hover:text-white disabled:opacity-0 transition-all">Back</button>
+          <div className="flex items-center justify-between mt-6">
+            <button onClick={() => setStep((s) => s - 1)} disabled={step === 0} className="px-3 py-1.5 text-xs text-gray-400 hover:text-gray-600 disabled:opacity-0 transition-all">Back</button>
             <button onClick={isLast ? handleFinish : () => setStep((s) => s + 1)} disabled={!canAdvance()}
-              className="flex items-center gap-2 px-6 py-3 bg-gradient-to-r from-brand-500 to-brand-600 hover:from-brand-400 hover:to-brand-500 disabled:from-surface-700 disabled:to-surface-700 disabled:cursor-not-allowed text-white font-bold rounded-xl transition-all shadow-glow disabled:shadow-none">
-              {isLast ? 'Start Using Milo' : 'Continue'}
-              <ChevronRight className="w-4 h-4" />
+              className="flex items-center gap-1.5 px-4 py-2 bg-brand-500 hover:bg-brand-600 disabled:bg-gray-200 dark:disabled:bg-gray-700 disabled:cursor-not-allowed text-white disabled:text-gray-400 font-medium rounded-lg transition-all text-sm">
+              {isLast ? 'Start Using Milo' : 'Continue'} <ChevronRight className="w-3.5 h-3.5" />
             </button>
           </div>
         </div>
-        <p className="text-center text-xs text-surface-600 mt-4">Step {step + 1} of {steps.length}</p>
+        <p className="text-center text-[10px] text-gray-300 dark:text-gray-600 mt-3">Step {step + 1} of {steps.length}</p>
       </div>
     </div>
   );

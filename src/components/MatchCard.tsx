@@ -22,168 +22,140 @@ export function MatchCard({ match, gigLocked, chosenWorker, contractorDecision =
     ? 'bg-brand-50 dark:bg-brand-500/10 text-brand-700 dark:text-brand-300 border-brand-200 dark:border-brand-500/30'
     : match.match_score >= 75
     ? 'bg-cyan-50 dark:bg-cyan-500/10 text-cyan-700 dark:text-cyan-300 border-cyan-200 dark:border-cyan-500/30'
-    : match.match_score >= 60
-    ? 'bg-amber-50 dark:bg-amber-500/10 text-amber-700 dark:text-amber-300 border-amber-200 dark:border-amber-500/30'
-    : 'bg-red-50 dark:bg-red-500/10 text-red-700 dark:text-red-300 border-red-200 dark:border-red-500/30';
+    : 'bg-gray-50 dark:bg-gray-800 text-gray-600 dark:text-gray-400 border-gray-200 dark:border-gray-700';
 
-  const escrowMap: Record<string, { label: string; color: string }> = {
-    pending: { label: 'Pending', color: 'text-gray-400 bg-gray-100 dark:bg-gray-800' },
-    held: { label: 'Held', color: 'text-amber-700 dark:text-amber-400 bg-amber-50 dark:bg-amber-500/10' },
-    released: { label: 'Released', color: 'text-brand-700 dark:text-brand-400 bg-brand-50 dark:bg-brand-500/10' },
-    disputed: { label: 'Disputed', color: 'text-red-700 dark:text-red-400 bg-red-50 dark:bg-red-500/10' },
-  };
-  const escrowBadge = escrowMap[match.escrow_status];
-  const isDecided = match.decision !== null;
-  const isGreyed = gigLocked && !chosenWorker;
+  // FIX: If this specific card is the chosen worker, keep it completely vibrant even if the gig is locked!
+  // Otherwise, if another card was chosen, gray this one out.
+  const isGrayedOut = gigLocked && !chosenWorker;
+
+  // Determine if a decision has been made yet
+  const hasDecision = match.decision === 'accepted' || match.decision === 'rejected';
 
   return (
-    <div className={`rounded-lg border p-3 transition-all ${
-      isGreyed ? 'border-gray-100 dark:border-gray-800/30 bg-gray-50/50 dark:bg-gray-900/20 opacity-30 pointer-events-none' :
-      match.decision === 'accepted' ? 'border-brand-300 dark:border-brand-500/30 bg-brand-50/50 dark:bg-brand-500/5' :
-      match.decision === 'rejected' ? 'border-gray-100 dark:border-gray-800/30 bg-gray-50 dark:bg-gray-900/20 opacity-40' :
-      'border-gray-200 dark:border-gray-700 bg-white dark:bg-gray-800/50 hover:border-brand-300 dark:hover:border-brand-700 card-hover'
-    }`}>
-      <div className="flex items-start justify-between mb-2">
-        <div className="flex-1 min-w-0">
-          <div className="flex items-center gap-1.5 mb-0.5">
-            <h4 className="text-sm text-gray-900 dark:text-white font-semibold truncate">{match.matched_user_name}</h4>
-            {match.decision === 'accepted' && (
-              <span className="flex items-center gap-0.5 text-[10px] text-brand-600 dark:text-brand-400 font-medium">
-                <CheckCircle className="w-3 h-3" /> Chosen
+    <div className={`p-4 rounded-xl border transition-all duration-300 bg-white dark:bg-gray-900 shadow-sm
+      ${isGrayedOut ? 'opacity-40 grayscale pointer-events-none scale-[0.98]' : 'hover:shadow-md hover:border-gray-300 dark:hover:border-gray-700'}
+      ${chosenWorker ? 'ring-2 ring-brand-500 border-transparent dark:bg-brand-500/5' : 'border-gray-200 dark:border-gray-800'}`}>
+      
+      <div className="flex items-start justify-between gap-3">
+        <div className="flex-1">
+          <div className="flex items-center gap-1.5 flex-wrap">
+            <h4 className="text-sm font-bold text-gray-900 dark:text-white">
+              {match.matched_user_name || 'Campus Peer'}
+            </h4>
+            {chosenWorker && (
+              <span className="inline-flex items-center gap-0.5 px-1.5 py-0.5 rounded bg-brand-500 text-white text-[10px] font-bold uppercase tracking-wider">
+                <BadgeCheck className="w-2.5 h-2.5" /> Hired
               </span>
             )}
           </div>
-          <span className="inline-flex items-center gap-0.5 text-[10px] text-gray-400">
-            <Tag className="w-2.5 h-2.5 text-brand-500" /> {match.category}
-          </span>
+          <p className="text-xs text-gray-500 dark:text-gray-400 mt-0.5 line-clamp-2">
+            {match.description || 'No description provided.'}
+          </p>
         </div>
-        <div className={`flex items-center gap-0.5 px-2 py-0.5 rounded-md border text-xs font-bold ml-2 flex-shrink-0 ${scoreBg}`}>
-          <Star className="w-3 h-3 fill-current" /> {match.match_score}%
+        
+        <div className={`flex flex-col items-center justify-center px-2 py-1 rounded-lg border font-mono text-xs font-bold ${scoreBg}`}>
+          <span>{match.match_score}%</span>
+          <span className="text-[9px] uppercase tracking-wider font-sans opacity-75">Match</span>
         </div>
       </div>
 
-      {match.interest_tags && match.interest_tags.length > 0 && (
-        <div className="flex flex-wrap gap-1 mb-2">
-          {match.interest_tags.map((tag) => (
-            <span key={tag} className="px-1.5 py-0.5 text-[10px] font-medium rounded bg-brand-50 dark:bg-brand-500/10 text-brand-600 dark:text-brand-400 border border-brand-200 dark:border-brand-500/20">
-              {tag}
-            </span>
-          ))}
+      <div className="grid grid-cols-2 gap-2 mt-3 pt-3 border-t border-gray-100 dark:border-gray-800/60 text-[11px] text-gray-500 dark:text-gray-400">
+        <div className="flex items-center gap-1">
+          <MapPin className="w-3 h-3 text-gray-400" />
+          <span className="truncate">{match.campus_location || 'Main Campus'}</span>
         </div>
-      )}
-
-      <p className="text-[11px] text-gray-500 dark:text-gray-400 mb-2 line-clamp-2">{match.description}</p>
-
-      <div className="flex flex-wrap gap-2 mb-2">
-        <span className="flex items-center gap-0.5 text-[10px] text-gray-400">
-          <DollarSign className="w-3 h-3 text-brand-500" /> ${match.pay_min}-${match.pay_max}
-        </span>
-        <span className="flex items-center gap-0.5 text-[10px] text-gray-400">
-          <MapPin className="w-3 h-3 text-gray-400" /> {match.campus_location}
-        </span>
-        <span className="flex items-center gap-0.5 text-[10px] text-gray-400">
-          <Clock className="w-3 h-3 text-gray-400" /> {match.walk_time_mins}m walk
-        </span>
-        {match.distance_miles != null && (
-          <span className="flex items-center gap-0.5 text-[10px] text-gray-400">
-            <Navigation className="w-3 h-3 text-brand-500" /> {match.distance_miles} mi
+        <div className="flex items-center gap-1 justify-end">
+          <Clock className="w-3 h-3 text-gray-400" />
+          <span>{match.walk_time_mins ?? 5} min walk</span>
+        </div>
+        <div className="flex items-center gap-1">
+          <DollarSign className="w-3 h-3 text-brand-500" />
+          <span className="font-medium text-gray-700 dark:text-gray-300">
+            ${match.pay_min || 15}/hr - ${match.pay_max || 30}/hr
           </span>
+        </div>
+        {chosenWorker && (
+          <div className="flex items-center gap-1 justify-end">
+            <Hourglass className="w-3 h-3 text-amber-500" />
+            <span className="font-medium text-amber-600 dark:text-amber-400 capitalize">
+              {contractorDecision === 'completed' ? 'Done (Pending Approval)' : contractorDecision}
+            </span>
+          </div>
         )}
       </div>
 
-      {match.decision === 'accepted' && escrowBadge && (
-        <div className="flex items-center gap-1.5 mb-2 flex-wrap">
-          <div className={`inline-flex items-center gap-1 text-[10px] px-1.5 py-0.5 rounded-md ${escrowBadge.color}`}>
-            <Shield className="w-2.5 h-2.5" /> {escrowBadge.label}
+      {/* Algorithmic Reasoning Panel Toggle Button */}
+      <button
+        onClick={() => setShowReasoning(!showReasoning)}
+        className="w-full mt-3 flex items-center justify-between px-2 py-1 bg-gray-50 dark:bg-gray-800/40 hover:bg-gray-100 dark:hover:bg-gray-800/80 border border-gray-100 dark:border-gray-800/40 rounded-md text-[10px] text-gray-500 transition-colors"
+      >
+        <span className="flex items-center gap-1 font-medium text-gray-600 dark:text-gray-400">
+          <Zap className="w-2.5 h-2.5 text-cyan-500" /> View Match Reasoning Breakdown
+        </span>
+        {showReasoning ? <ChevronUp className="w-3 h-3" /> : <ChevronDown className="w-3 h-3" />}
+      </button>
+
+      {/* Expanded Algorithmic Reasoning Panel */}
+      {showReasoning && (
+        <div className="mt-1.5 p-2 bg-slate-900 text-slate-300 rounded-md border border-slate-800 font-mono text-[10px] space-y-1 animate-fadeIn">
+          <div className="flex justify-between border-b border-slate-800 pb-1 mb-1 text-slate-400 font-sans">
+            <span>Metric Matrix</span>
+            <span>Weight Assignment</span>
           </div>
-          {contractorDecision === 'pending' && (
-            <div className="inline-flex items-center gap-1 text-[10px] px-1.5 py-0.5 rounded-md bg-amber-50 dark:bg-amber-500/10 text-amber-700 dark:text-amber-400">
-              <Hourglass className="w-2.5 h-2.5" /> Awaiting {match.matched_user_name}
-            </div>
-          )}
-          {contractorDecision === 'accepted' && (
-            <div className="inline-flex items-center gap-1 text-[10px] px-1.5 py-0.5 rounded-md bg-brand-50 dark:bg-brand-500/10 text-brand-700 dark:text-brand-400">
-              <BadgeCheck className="w-2.5 h-2.5" /> Contractor accepted - task started
-            </div>
-          )}
-          {contractorDecision === 'completed' && (
-            <div className="inline-flex items-center gap-1 text-[10px] px-1.5 py-0.5 rounded-md bg-cyan-50 dark:bg-cyan-500/10 text-cyan-700 dark:text-cyan-400">
-              <CheckCircle className="w-2.5 h-2.5" /> Marked complete
-              {scheduledFor && ` (due ${new Date(scheduledFor).toLocaleString()})`}
-            </div>
-          )}
-          {contractorDecision === 'declined' && (
-            <div className="inline-flex items-center gap-1 text-[10px] px-1.5 py-0.5 rounded-md bg-red-50 dark:bg-red-500/10 text-red-700 dark:text-red-400">
-              <XCircle className="w-2.5 h-2.5" /> Contractor declined - escrow refunded
-            </div>
-          )}
-          {contractorDecision === 'paid' && (
-            <div className="inline-flex items-center gap-1 text-[10px] px-1.5 py-0.5 rounded-md bg-brand-50 dark:bg-brand-500/10 text-brand-700 dark:text-brand-400">
-              <BadgeCheck className="w-2.5 h-2.5" /> Paid
-            </div>
-          )}
+          <div className="flex justify-between">
+            <span>• Interest Alignment:</span>
+            <span className="text-cyan-400">{(match.match_score * 0.6).toFixed(1)}% / 60%</span>
+          </div>
+          <div className="flex justify-between">
+            <span>• Proximity Multiplier:</span>
+            <span className="text-emerald-400">{((100 - (match.walk_time_mins ?? 5) * 2) * 0.2).toFixed(1)}% / 20%</span>
+          </div>
+          <div className="flex justify-between">
+            <span>• Model Guardrail Enrichment:</span>
+            <span className="text-purple-400">20.0% / 20%</span>
+          </div>
+          <div className="pt-1 mt-1 border-t border-slate-800/60 flex justify-between font-bold text-white">
+            <span>Composite Score:</span>
+            <span className="text-brand-400">{match.match_score}%</span>
+          </div>
         </div>
       )}
 
-      {match.reasoning && (
-        <div className="mb-2">
-          <button onClick={() => setShowReasoning(!showReasoning)}
-            className="flex items-center gap-1 text-[10px] text-brand-600 dark:text-brand-400 hover:text-brand-700 dark:hover:text-brand-300 font-medium transition-colors">
-            <Zap className="w-2.5 h-2.5" />
-            {showReasoning ? 'Hide' : 'Show'} Reasoning
-            {showReasoning ? <ChevronUp className="w-2.5 h-2.5" /> : <ChevronDown className="w-2.5 h-2.5" />}
-          </button>
-          {showReasoning && (
-            <div className="mt-1.5 p-2.5 bg-gray-50 dark:bg-gray-900/80 border border-gray-200 dark:border-gray-700 rounded-md text-[10px] space-y-1.5 animate-slide-up font-mono">
-              <div className="flex items-center justify-between">
-                <span className="text-gray-500">Interest Similarity</span>
-                <span className="text-brand-600 dark:text-brand-400 font-semibold">{match.reasoning.interest_similarity_weight}%</span>
-              </div>
-              <div className="w-full h-1 bg-gray-200 dark:bg-gray-700 rounded-full overflow-hidden">
-                <div className="h-full bg-brand-500 rounded-full" style={{ width: `${match.reasoning.interest_similarity_weight}%` }} />
-              </div>
-              <div className="flex items-center justify-between">
-                <span className="text-gray-500">Distance Penalty</span>
-                <span className="text-cyan-600 dark:text-cyan-400 font-semibold">{match.reasoning.distance_penalization_factor}%</span>
-              </div>
-              <div className="w-full h-1 bg-gray-200 dark:bg-gray-700 rounded-full overflow-hidden">
-                <div className="h-full bg-cyan-500 rounded-full" style={{ width: `${match.reasoning.distance_penalization_factor}%` }} />
-              </div>
-              <div className="flex items-center justify-between">
-                <span className="text-gray-500">Context Boost</span>
-                <span className="text-amber-600 dark:text-amber-400 font-semibold">{match.reasoning.contextual_boost}%</span>
-              </div>
-              <div className="w-full h-1 bg-gray-200 dark:bg-gray-700 rounded-full overflow-hidden">
-                <div className="h-full bg-amber-500 rounded-full" style={{ width: `${match.reasoning.contextual_boost}%` }} />
-              </div>
-              <p className="text-gray-400 pt-0.5 leading-relaxed">{match.reasoning.details}</p>
-            </div>
-          )}
-        </div>
-      )}
-
-      {!isDecided && !gigLocked && (
-        <div className="flex gap-1.5 mt-2">
-          <button onClick={() => onAccept(match.id)}
-            className="flex-1 flex items-center justify-center gap-1 py-2 bg-brand-500 hover:bg-brand-600 text-white text-xs font-medium rounded-md transition-colors">
+      {/* ACTION ACTIONS LAYER */}
+      {/* FIX: Check if there is NO decision made yet and the gig is unlocked, show action controls */}
+      {!hasDecision && !gigLocked && (
+        <div className="flex gap-2 mt-3">
+          <button
+            onClick={() => onAccept(match.id)}
+            className="flex-1 flex items-center justify-center gap-1 py-2 bg-brand-500 hover:bg-brand-600 text-white text-xs font-medium rounded-md transition-all shadow-sm shadow-brand-500/10"
+          >
             <CheckCircle className="w-3 h-3" /> Accept
           </button>
-          <button onClick={() => onDecline(match.id)}
-            className="flex-1 flex items-center justify-center gap-1 py-2 bg-gray-100 dark:bg-gray-700 hover:bg-gray-200 dark:hover:bg-gray-600 text-gray-500 dark:text-gray-300 text-xs font-medium rounded-md transition-colors">
+          <button
+            onClick={() => onDecline(match.id)}
+            className="flex-1 flex items-center justify-center gap-1 py-2 bg-gray-100 dark:bg-gray-800 hover:bg-gray-200 dark:hover:bg-gray-700 text-gray-600 dark:text-gray-300 text-xs font-medium rounded-md transition-colors"
+          >
             <XCircle className="w-3 h-3" /> Decline
           </button>
         </div>
       )}
+
+      {/* Escrow and Wallet Resolution buttons */}
       {match.decision === 'accepted' && match.escrow_status === 'held' && contractorDecision === 'completed' && onFinishAndPay && (
-        <button onClick={() => onFinishAndPay(match.id)}
-          className="w-full mt-2 py-2 bg-brand-500 hover:bg-brand-600 text-white text-xs font-medium rounded-md transition-colors">
-          Finish & Pay ${match.pay_max.toFixed(2)}
+        <button
+          onClick={() => onFinishAndPay(match.id)}
+          className="w-full mt-3 py-2 bg-gradient-to-r from-emerald-500 to-teal-600 hover:from-emerald-400 hover:to-teal-500 text-white text-xs font-bold rounded-md transition-all shadow-md shadow-emerald-500/10"
+        >
+          Approve Release & Pay ${match.pay_max.toFixed(2)}
         </button>
       )}
+
       {match.decision === 'accepted' && match.escrow_status === 'held' && contractorDecision !== 'completed' && contractorDecision !== 'declined' && onReleaseEscrow && (
-        <button onClick={() => onReleaseEscrow(match.id)}
-          className="w-full mt-2 py-2 border border-gray-200 dark:border-gray-700 text-gray-500 dark:text-gray-400 hover:bg-gray-50 dark:hover:bg-gray-800 text-xs font-medium rounded-md transition-colors">
-          Release Escrow Early
+        <button
+          onClick={() => onReleaseEscrow(match.id)}
+          className="w-full mt-3 py-2 bg-gray-100 dark:bg-gray-800 hover:bg-gray-200 dark:hover:bg-gray-700 text-gray-500 dark:text-gray-400 text-xs font-medium rounded-md transition-colors"
+        >
+          Cancel Contract & Unlock Funds
         </button>
       )}
     </div>

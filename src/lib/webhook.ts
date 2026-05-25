@@ -1,7 +1,7 @@
 import type { UserProfile } from './supabase';
 
 const API_BASE_URL = 'https://skye-web-service.onrender.com';
-const MATCH_ENDPOINT = `${API_BASE_URL}/api/milo-agent-match`;
+export const MATCH_ENDPOINT = `${API_BASE_URL}/api/milo-agent-match`;
 
 export type WebhookPayload = {
   event_type: 'CLIENT_REQUEST_DELEGATION';
@@ -57,6 +57,12 @@ export type WebhookResponse = {
   success: boolean;
   matches: WebhookMatch[];
   message?: string;
+  directive?: {
+    short_answer: string;
+    action: string;
+    action_confidence: number;
+    filled_fields?: Record<string, unknown>;
+  };
 };
 
 export async function sendWebhookRequest(
@@ -83,7 +89,8 @@ export async function sendWebhookRequest(
 
     const data = await response.json();
     if (data.success && data.matches && data.matches.length > 0) {
-      return data as WebhookResponse;
+      const normalized = normalizeDemoMatches(data.matches);
+      return normalized.length > 0 ? { ...data, matches: normalized } : generateMockMatches(payload);
     }
     return generateMockMatches(payload);
   } catch (err) {
@@ -107,6 +114,19 @@ function anySignal(signals: AbortSignal[]): AbortSignal {
 
 export function findMockProfileIdxByName(name: string): number {
   return MOCK_PROFILES.findIndex((p) => p.name === name);
+}
+
+function normalizeDemoMatches(matches: WebhookMatch[]): WebhookMatch[] {
+  return matches
+    .map((match) => {
+      const idx = findMockProfileIdxByName(match.matched_user_name);
+      if (idx === -1) return null;
+      return {
+        ...match,
+        matched_user_id: `mock-${idx}`,
+      };
+    })
+    .filter((match): match is WebhookMatch => match !== null);
 }
 
 export function buildWebhookPayload(

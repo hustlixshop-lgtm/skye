@@ -19,6 +19,7 @@ type Props = {
   onUpdateMatchDecision: (matchId: string, decision: 'accepted' | 'rejected') => Promise<void>;
   onReleaseEscrow: (matchId: string) => Promise<void>;
   onFinishAndPay: (matchId: string) => Promise<void>;
+  onContractorMarkComplete: (matchId: string, scheduledFor?: string | null) => Promise<void>;
   onPersistMessage: (msg: Omit<ChatMessage, 'id' | 'user_id' | 'created_at'>) => Promise<void>;
 };
 
@@ -28,7 +29,7 @@ function renderMarkdown(text: string): string {
 
 export function ChatPage({
   profile, userId, sessionId, activeGigs, matches, totalEscrow,
-  onOpenSettings, onSaveGig, onSaveMatches, onUpdateMatchDecision, onReleaseEscrow, onFinishAndPay, onPersistMessage,
+  onOpenSettings, onSaveGig, onSaveMatches, onUpdateMatchDecision, onReleaseEscrow, onFinishAndPay, onContractorMarkComplete, onPersistMessage,
 }: Props) {
   const [input, setInput] = useState('');
   const [showSidebar, setShowSidebar] = useState(true);
@@ -44,12 +45,15 @@ export function ChatPage({
   };
 
   const { entries, isThinking, handleUserMessage, handleAcceptMatch, handleDeclineMatch, handleReleaseEscrow, handleFinishAndPay } = useMiloChat({
-    profile, userId, sessionId, onSaveGig, onSaveMatches, onUpdateMatchDecision, onReleaseEscrow, onFinishAndPay, onPersistMessage,
+    profile, userId, sessionId, matches, onSaveGig, onSaveMatches, onUpdateMatchDecision, onReleaseEscrow, onFinishAndPay, onPersistMessage,
   });
 
   // Subscribe to demoStore so MatchCard can react to contractor decisions.
   const [demoExtras, setDemoExtras] = useState(() => getDemoState().matchExtras);
   useEffect(() => subscribeDemoStore((s) => setDemoExtras(s.matchExtras)), []);
+
+  const heldMatch = matches.find((m) => m.decision === 'accepted' && m.escrow_status === 'held');
+  const completionMatch = heldMatch && demoExtras?.[heldMatch.id]?.contractor_decision === 'completed' ? heldMatch : null;
 
   useEffect(() => { bottomRef.current?.scrollIntoView({ behavior: 'smooth' }); }, [entries, isThinking]);
 
@@ -224,8 +228,67 @@ export function ChatPage({
 
         {/* Messages */}
         <div className="flex-1 overflow-y-auto px-4 py-3 space-y-3 min-h-0 bg-white dark:bg-gray-950">
+          {completionMatch && (
+            <div className="rounded-2xl border border-emerald-200 dark:border-emerald-600/40 bg-emerald-50 dark:bg-emerald-500/10 p-4 text-emerald-900 dark:text-emerald-100 mb-3">
+              <div className="flex flex-col gap-2">
+                <div className="text-sm font-semibold">Order is ready to complete</div>
+                <div className="text-xs text-emerald-700 dark:text-emerald-200">
+                  {completionMatch.matched_user_name} marked the work complete. Approve payment to release escrow and finish the gig.
+                </div>
+                <div className="flex flex-col sm:flex-row gap-2">
+                  <button
+                    onClick={() => handleFinishAndPay(completionMatch.id, matches)}
+                    className="w-full sm:w-auto px-3 py-2 bg-emerald-600 hover:bg-emerald-500 text-white text-xs font-semibold rounded-lg transition-colors"
+                  >
+                    COMPLETE ORDER & PAY ${completionMatch.pay_max.toFixed(2)}
+                  </button>
+                  <div className="text-[10px] text-emerald-700 dark:text-emerald-200 sm:pt-1">
+                    Or reply <span className="font-semibold">COMPLETE ORDER</span> in chat.
+                  </div>
+                </div>
+              </div>
+            </div>
+          )}
+          {!completionMatch && heldMatch && (
+            <div className="rounded-2xl border border-amber-200 dark:border-amber-600/40 bg-amber-50 dark:bg-amber-500/10 p-4 text-amber-900 dark:text-amber-100 mb-3">
+              <div className="text-sm font-semibold">Escrow is held for an active gig</div>
+              <div className="text-[10px] mt-1 text-amber-700 dark:text-amber-200">
+                If the worker has finished, reply <span className="font-semibold">COMPLETE ORDER</span> to release payment.
+              </div>
+            </div>
+          )}
           {entries.map((entry) => {
             const isAgent = entry.role === 'agent';
+
+            if (entry.role === 'system_cards' && entry.matches) {
+              return (
+                <div key={entry.id} className="space-y-3">
+                  <div className="px-3 py-2 bg-brand-50 dark:bg-brand-500/10 border border-brand-200 dark:border-brand-500/20 rounded-2xl">
+                    <p className="text-[10px] font-semibold uppercase tracking-wide text-brand-600 dark:text-brand-300">Match results</p>
+                    <p className="mt-1 text-sm text-gray-700 dark:text-gray-200">I found candidates that best match your campus gig request. Review and select the worker you'd like to hire.</p>
+                  </div>
+                  <div className="grid gap-3 sm:grid-cols-2 xl:grid-cols-3">
+                    {entry.matches.map((m) => {
+                      const acceptedInThisEntry = entry.matches!.some((em) => em.decision === 'accepted');
+                      const isAcceptedMatch = m.decision === 'accepted';
+                      const gigLocked = acceptedInThisEntry && !isAcceptedMatch;
+                      const contractorDecision = demoExtras?.[m.id]?.contractor_decision ?? 'pending';
+                      const scheduledFor = demoExtras?.[m.id]?.scheduled_for ?? null;
+                      return (
+                        <MatchCard key={m.id} match={m} gigLocked={gigLocked} chosenWorker={isAcceptedMatch}
+                          contractorDecision={contractorDecision}
+                          scheduledFor={scheduledFor}
+                          onAccept={(id) => void handleAcceptMatch(id, entry.matches!)}
+                          onDecline={(id) => void handleDeclineMatch(id)}
+                          onReleaseEscrow={(id) => void handleReleaseEscrow(id, entry.matches!)}
+                          onFinishAndPay={(id) => void handleFinishAndPay(id, entry.matches!)}
+                          onMarkComplete={(id) => void onContractorMarkComplete(id)} />
+                      );
+                    })}
+                  </div>
+                </div>
+              );
+            }
 
             if (entry.type === 'telemetry') {
               return (
@@ -247,10 +310,8 @@ export function ChatPage({
                   <div className="flex-1 max-w-[92%] space-y-2">
                     <p className="text-[10px] text-gray-400 font-bold">{entry.matches.length} match{entry.matches.length !== 1 ? 'es' : ''} found</p>
                     {entry.matches.map((m) => {
-                      // Check if ANY match in THIS chat entry has been accepted
                       const acceptedInThisEntry = entry.matches!.some((em) => em.decision === 'accepted');
                       const isAcceptedMatch = m.decision === 'accepted';
-                      // Only grey out if there's an accepted match in this entry and this isn't it
                       const gigLocked = acceptedInThisEntry && !isAcceptedMatch;
                       const contractorDecision = demoExtras?.[m.id]?.contractor_decision ?? 'pending';
                       const scheduledFor = demoExtras?.[m.id]?.scheduled_for ?? null;
@@ -261,7 +322,8 @@ export function ChatPage({
                           onAccept={(id) => void handleAcceptMatch(id, entry.matches!)}
                           onDecline={(id) => void handleDeclineMatch(id)}
                           onReleaseEscrow={(id) => void handleReleaseEscrow(id, entry.matches!)}
-                          onFinishAndPay={(id) => void handleFinishAndPay(id, entry.matches!)} />
+                          onFinishAndPay={(id) => void handleFinishAndPay(id, entry.matches!)}
+                          onMarkComplete={(id) => void onContractorMarkComplete(id)} />
                       );
                     })}
                   </div>

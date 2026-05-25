@@ -9,10 +9,12 @@ type Props = {
   profile: UserProfile;
   userId: string;
   sessionId: string;
+  matches: GigMatch[];
   onSaveGig: (gig: Omit<Gig, 'id' | 'user_id' | 'created_at' | 'updated_at' | 'applicant_count'>) => Promise<{ data: Gig | null; error: unknown }>;
   onSaveMatches: (gigId: string, matches: GigMatch[]) => Promise<void>;
   onUpdateMatchDecision: (matchId: string, decision: 'accepted' | 'rejected') => Promise<void>;
   onReleaseEscrow: (matchId: string) => Promise<void>;
+  onFinishAndPay: (matchId: string) => Promise<void>;
   onPersistMessage: (msg: Omit<ChatMessage, 'id' | 'user_id' | 'created_at'>) => Promise<void>;
 };
 
@@ -27,10 +29,12 @@ export function MiloChat({
   profile,
   userId,
   sessionId,
+  matches,
   onSaveGig,
   onSaveMatches,
   onUpdateMatchDecision,
   onReleaseEscrow,
+  onFinishAndPay,
   onPersistMessage,
 }: Props) {
   const [input, setInput] = useState('');
@@ -49,10 +53,12 @@ export function MiloChat({
     profile,
     userId,
     sessionId,
+    matches,
     onSaveGig,
     onSaveMatches,
     onUpdateMatchDecision,
     onReleaseEscrow,
+    onFinishAndPay,
     onPersistMessage,
   });
 

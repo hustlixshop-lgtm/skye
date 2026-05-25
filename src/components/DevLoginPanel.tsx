@@ -1,6 +1,7 @@
 import { useState } from 'react';
 import { X, LogIn } from 'lucide-react';
 import { MOCK_PROFILES } from '../lib/webhook';
+import { seedDemoWallets } from '../lib/demoStore';
 
 type Props = {
   onLogin: (profileIdx: number) => Promise<{ error: string | null }>;
@@ -66,7 +67,13 @@ export function DevLoginPanel({ onLogin, onClose }: Props) {
           ))}
         </div>
 
-        <div className="px-4 py-3 border-t border-gray-100 dark:border-gray-800">
+        <div className="px-4 py-3 border-t border-gray-100 dark:border-gray-800 space-y-2">
+          <button
+            onClick={() => seedDemoWallets(100)}
+            className="w-full px-3 py-2 text-xs font-semibold text-white bg-brand-600 hover:bg-brand-700 rounded-lg transition-colors"
+          >
+            Seed demo wallets with $100
+          </button>
           <p className="text-[10px] text-gray-400 text-center">Credentials: name@milo-dev.local / dev1234</p>
         </div>
       </div>

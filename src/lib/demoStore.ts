@@ -103,6 +103,26 @@ export function adjustDemoWallet(profileName: string, delta: number) {
   }));
 }
 
+// Set a demo wallet to an absolute amount
+export function setDemoWallet(profileName: string, amount: number) {
+  updateState((prev) => ({
+    ...prev,
+    demoWallets: {
+      ...prev.demoWallets,
+      [profileName]: amount,
+    },
+  }));
+}
+
+// Seed all demo profiles with a fixed starting balance. Importing MOCK_PROFILES so callers
+// can just call `seedDemoWallets(100)` during development to populate wallets.
+import { MOCK_PROFILES } from './webhook';
+export function seedDemoWallets(amount: number) {
+  const map: Record<string, number> = {};
+  for (const p of MOCK_PROFILES) map[p.name] = amount;
+  updateState((prev) => ({ ...prev, demoWallets: { ...prev.demoWallets, ...map } }));
+}
+
 // Cross-tab sync (in case dev tools opens a duplicate)
 if (typeof window !== 'undefined') {
   window.addEventListener('storage', (e) => {

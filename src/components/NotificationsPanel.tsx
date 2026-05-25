@@ -1,15 +1,18 @@
 import { Bell, CheckCircle, XCircle, DollarSign, MapPin, User, Shield, Briefcase, Check, RotateCcw, Clock } from 'lucide-react';
 import type { Notification } from '../lib/supabase';
+import type { ReactNode } from 'react';
 
 type Props = {
   notifications: Notification[];
   unreadCount: number;
   onMarkRead: (id: string) => void;
   onMarkAllRead: () => void;
+  onApprovePayment?: (gigId: string) => void;
+  onRequestRedo?: (gigId: string) => void;
   onClose: () => void;
 };
 
-const typeConfig: Record<Notification['type'], { icon: React.ReactNode; color: string }> = {
+const typeConfig: Record<Notification['type'], { icon: ReactNode; color: string }> = {
   gig_match: { icon: <MapPin className="w-3.5 h-3.5" />, color: 'text-cyan-600 dark:text-cyan-400 bg-cyan-50 dark:bg-cyan-500/10' },
   gig_application: { icon: <User className="w-3.5 h-3.5" />, color: 'text-blue-600 dark:text-blue-400 bg-blue-50 dark:bg-blue-500/10' },
   application_accepted: { icon: <CheckCircle className="w-3.5 h-3.5" />, color: 'text-brand-600 dark:text-brand-400 bg-brand-50 dark:bg-brand-500/10' },
@@ -23,7 +26,7 @@ const typeConfig: Record<Notification['type'], { icon: React.ReactNode; color: s
   gig_redo: { icon: <RotateCcw className="w-3.5 h-3.5" />, color: 'text-red-600 dark:text-red-400 bg-red-50 dark:bg-red-500/10' },
 };
 
-export function NotificationsPanel({ notifications, unreadCount, onMarkRead, onMarkAllRead, onClose }: Props) {
+export function NotificationsPanel({ notifications, unreadCount, onMarkRead, onMarkAllRead, onApprovePayment, onRequestRedo, onClose }: Props) {
   return (
     <div className="fixed inset-0 z-50 flex">
       <div className="fixed inset-0 bg-black/20 dark:bg-black/50 backdrop-blur-sm" onClick={onClose} />
@@ -62,6 +65,26 @@ export function NotificationsPanel({ notifications, unreadCount, onMarkRead, onM
                       {!notif.is_read && <div className="w-1.5 h-1.5 rounded-full bg-brand-500" />}
                     </div>
                     <p className="text-[10px] text-gray-500 dark:text-gray-400 mt-0.5">{notif.body}</p>
+                    {notif.type === 'gig_completion_pending' && notif.reference_id && (onApprovePayment || onRequestRedo) && (
+                      <div className="mt-3 flex flex-wrap gap-2">
+                        {onApprovePayment && (
+                          <button
+                            onClick={(e) => { e.stopPropagation(); onApprovePayment(notif.reference_id!); }}
+                            className="px-2.5 py-1.5 bg-emerald-500 hover:bg-emerald-400 text-white text-[10px] font-semibold rounded-md transition-colors"
+                          >
+                            Finish & Pay
+                          </button>
+                        )}
+                        {onRequestRedo && (
+                          <button
+                            onClick={(e) => { e.stopPropagation(); onRequestRedo(notif.reference_id!); }}
+                            className="px-2.5 py-1.5 bg-gray-100 dark:bg-gray-800 hover:bg-gray-200 dark:hover:bg-gray-700 text-gray-600 dark:text-gray-300 text-[10px] font-semibold rounded-md transition-colors"
+                          >
+                            Request Redo
+                          </button>
+                        )}
+                      </div>
+                    )}
                     <p className="text-[10px] text-gray-300 dark:text-gray-600 mt-1">{new Date(notif.created_at).toLocaleString()}</p>
                   </div>
                 </div>

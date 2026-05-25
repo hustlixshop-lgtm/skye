@@ -9,7 +9,6 @@ import {
   setMatchExtras as setDemoMatchExtras,
   adjustDemoWallet,
   type DemoStoreShape,
-  type ContractorDecision,
 } from '../lib/demoStore';
 
 export function useAppState() {
@@ -259,7 +258,7 @@ export function useAppState() {
 
   const saveMatches = useCallback(async (gigId: string, incomingMatches: GigMatch[]) => {
     if (!userId) return;
-    const rows = incomingMatches.map((m) => ({ ...m, gig_id: gigId, user_id: userId }));
+    const rows = incomingMatches.map((m) => ({ ...m, gig_id: m.gig_id || gigId, user_id: userId }));
     await supabase.from('gig_matches').insert(rows);
     setMatches((prev) => [...incomingMatches, ...prev]);
   }, [userId]);
@@ -272,19 +271,46 @@ export function useAppState() {
       if (match) {
         await supabase.from('gigs').update({ status: 'matched', escrow_held: true, escrow_amount: match.pay_max }).eq('id', match.gig_id);
         setActiveGigs((prev) => prev.map((g) => g.id === match.gig_id ? { ...g, status: 'matched', escrow_held: true, escrow_amount: match.pay_max } : g));
-        // Actually deduct the held amount from poster's wallet so the refund/payment flow shows a visible balance change.
-        if (wallet && wallet.balance >= match.pay_max) {
-          const newBalance = wallet.balance - match.pay_max;
-          await supabase.from('wallets').update({ balance: newBalance }).eq('id', wallet.id);
-          await supabase.from('wallet_transactions').insert([{
-            wallet_id: wallet.id,
-            user_id: userId,
-            type: 'escrow_hold',
-            amount: match.pay_max,
-            reference_id: match.gig_id,
-            description: `Escrow held for ${match.matched_user_name}`,
-          }]);
-          setWallet((prev) => prev ? { ...prev, balance: newBalance } : prev);
+
+        // If the current user is the poster (match.user_id === userId), hold escrow from their wallet as before.
+        if (match.user_id === userId) {
+          if (wallet && wallet.balance >= match.pay_max) {
+            const newBalance = wallet.balance - match.pay_max;
+            await supabase.from('wallets').update({ balance: newBalance }).eq('id', wallet.id);
+            await supabase.from('wallet_transactions').insert([{
+              wallet_id: wallet.id,
+              user_id: userId,
+              type: 'escrow_hold',
+              amount: match.pay_max,
+              reference_id: match.gig_id,
+              description: `Escrow held for ${match.matched_user_name}`,
+            }]);
+            setWallet((prev) => prev ? { ...prev, balance: newBalance } : prev);
+          }
+        } else {
+          // Otherwise, the current user is the finder who accepted a poster's gig — hold escrow from the poster's wallet.
+          try {
+            const { data: posterWallet } = await supabase.from('wallets').select('*').eq('user_id', match.user_id).maybeSingle();
+            if (posterWallet && posterWallet.balance >= match.pay_max) {
+              const newBalance = posterWallet.balance - match.pay_max;
+              await supabase.from('wallets').update({ balance: newBalance }).eq('id', posterWallet.id);
+              await supabase.from('wallet_transactions').insert([{
+                wallet_id: posterWallet.id,
+                user_id: match.user_id,
+                type: 'escrow_hold',
+                amount: match.pay_max,
+                reference_id: match.gig_id,
+                description: `Escrow held for ${match.matched_user_name}`,
+              }]);
+              // Notify the poster that escrow has been held
+              await supabase.from('notifications').insert([{ user_id: match.user_id, type: 'escrow_held', title: 'Escrow Held', body: `$${match.pay_max.toFixed(2)} has been held in escrow for your gig.`, reference_id: match.gig_id }]);
+            } else {
+              // Poster has no wallet or insufficient funds — notify the finder
+              await supabase.from('notifications').insert([{ user_id: userId, type: 'escrow_refund', title: 'Escrow Unavailable', body: `Poster does not have sufficient funds to hold escrow for this gig.`, reference_id: match.gig_id }]);
+            }
+          } catch (err) {
+            console.warn('Error holding poster escrow:', err);
+          }
         }
       }
     }

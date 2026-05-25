@@ -1,5 +1,5 @@
 import { useState } from 'react';
-import { MapPin, DollarSign, Clock, Star, CheckCircle, XCircle, Shield, Tag, ChevronDown, ChevronUp, Navigation, Zap, Hourglass, BadgeCheck } from 'lucide-react';
+import { MapPin, DollarSign, Clock, CheckCircle, XCircle, ChevronDown, ChevronUp, Zap, Hourglass, BadgeCheck } from 'lucide-react';
 import type { GigMatch } from '../lib/supabase';
 import type { ContractorDecision } from '../lib/demoStore';
 
@@ -13,9 +13,10 @@ type Props = {
   onDecline: (matchId: string) => void;
   onReleaseEscrow?: (matchId: string) => void;
   onFinishAndPay?: (matchId: string) => void;
+  onMarkComplete?: (matchId: string) => void;
 };
 
-export function MatchCard({ match, gigLocked, chosenWorker, contractorDecision = 'pending', scheduledFor, onAccept, onDecline, onReleaseEscrow, onFinishAndPay }: Props) {
+export function MatchCard({ match, gigLocked, chosenWorker, contractorDecision = 'pending', scheduledFor, onAccept, onDecline, onReleaseEscrow, onFinishAndPay, onMarkComplete }: Props) {
   const [showReasoning, setShowReasoning] = useState(false);
 
   const scoreBg = match.match_score >= 90
@@ -77,9 +78,14 @@ export function MatchCard({ match, gigLocked, chosenWorker, contractorDecision =
         {chosenWorker && (
           <div className="flex items-center gap-1 justify-end">
             <Hourglass className="w-3 h-3 text-amber-500" />
-            <span className="font-medium text-amber-600 dark:text-amber-400 capitalize">
-              {contractorDecision === 'completed' ? 'Done (Pending Approval)' : contractorDecision}
-            </span>
+            <div className="text-right">
+              <div className="font-medium text-amber-600 dark:text-amber-400 capitalize">
+                {contractorDecision === 'completed' ? 'Done (Pending Approval)' : contractorDecision}
+              </div>
+              {scheduledFor && (
+                <div className="text-[10px] text-amber-500 dark:text-amber-300">Due by {scheduledFor}</div>
+              )}
+            </div>
           </div>
         )}
       </div>
@@ -157,6 +163,15 @@ export function MatchCard({ match, gigLocked, chosenWorker, contractorDecision =
           className="w-full mt-3 py-2 bg-gradient-to-r from-emerald-500 to-teal-600 hover:from-emerald-400 hover:to-teal-500 text-white text-xs font-bold rounded-md transition-all shadow-md shadow-emerald-500/10"
         >
           Approve Release & Pay ${match.pay_max.toFixed(2)}
+        </button>
+      )}
+
+      {match.decision === 'accepted' && match.escrow_status === 'held' && contractorDecision === 'pending' && onMarkComplete && (
+        <button
+          onClick={() => onMarkComplete(match.id)}
+          className="w-full mt-3 py-2 bg-cyan-500 hover:bg-cyan-600 text-white text-xs font-bold rounded-md transition-all shadow-sm shadow-cyan-500/10"
+        >
+          Mark Work Complete
         </button>
       )}
 

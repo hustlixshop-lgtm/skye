@@ -50,6 +50,20 @@ function App() {
     return saveGig(gig);
   };
 
+  const handleApprovePaymentNotification = async (gigId: string) => {
+    const match = matches.find((m) => m.gig_id === gigId && m.decision === 'accepted' && m.escrow_status === 'held');
+    if (match) {
+      await finishAndPayMatch(match.id);
+    }
+  };
+
+  const handleRequestRedoNotification = async (gigId: string) => {
+    const match = matches.find((m) => m.gig_id === gigId && m.decision === 'accepted' && m.escrow_status === 'held');
+    if (match) {
+      await requestRedo(gigId, match.id);
+    }
+  };
+
   const navigateTo = (p: Page) => {
     setPage(p);
   };
@@ -230,6 +244,7 @@ function App() {
             onSaveGig={handleSaveGig} onSaveMatches={saveMatches}
             onUpdateMatchDecision={updateMatchDecision} onReleaseEscrow={releaseEscrow}
             onFinishAndPay={finishAndPayMatch}
+            onContractorMarkComplete={(matchId) => contractorMarkComplete(matchId, null)}
             onPersistMessage={addMessage}
           />
         ) : (
@@ -247,6 +262,8 @@ function App() {
       {showNotifications && (
         <NotificationsPanel notifications={notifications} unreadCount={unreadCount}
           onMarkRead={markNotificationRead} onMarkAllRead={markAllNotificationsRead}
+          onApprovePayment={handleApprovePaymentNotification}
+          onRequestRedo={handleRequestRedoNotification}
           onClose={() => setShowNotifications(false)} />
       )}
       {showDevPanel && (

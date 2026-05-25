@@ -138,7 +138,6 @@ export function getMiloResponse(phase: ConversationPhase, data: ExtractedGigData
       const pay = data.pay_min !== null && data.pay_max !== null
         ? `$${data.pay_min}–$${data.pay_max}`
         : 'Flexible';
-      const modeLabel = data.mode === 'search' ? 'Looking for gigs in' : 'Posting';
       return `Here's what I'll ${data.mode === 'post' ? 'post for you' : 'search for'}:\n\n**${data.title || data.category}**\n- Category: ${data.category}\n- Location: ${loc}\n- Pay: ${pay}\n- Description: ${data.description}\n\nDoes this look right? Say **"yes"** to ${data.mode === 'post' ? 'post it' : 'find matching gigs'}, or let me know what to change.`;
     }
     case 'submitted':

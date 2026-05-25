@@ -352,8 +352,15 @@ export function useMiloChat({
       const category = detectCategory(trimmed) as GigCategory;
       const updatedData: ExtractedGigData = { ...gigData, category, description: trimmed, title: category !== 'Other' ? category : trimmed.slice(0, 60) };
       setGigData(updatedData);
-      setPhase('collect_location');
-      agentSay(getMiloResponse('collect_category', updatedData, trimmed));
+
+      // For search mode, skip location/pay and go directly to confirm
+      if (gigData.mode === 'search') {
+        setPhase('confirm');
+        agentSay(getMiloResponse('confirm', updatedData, trimmed));
+      } else {
+        setPhase('collect_location');
+        agentSay(getMiloResponse('collect_category', updatedData, trimmed));
+      }
       setIsThinking(false);
       return;
     }

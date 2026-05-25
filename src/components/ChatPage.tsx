@@ -247,8 +247,11 @@ export function ChatPage({
                   <div className="flex-1 max-w-[92%] space-y-2">
                     <p className="text-[10px] text-gray-400 font-bold">{entry.matches.length} match{entry.matches.length !== 1 ? 'es' : ''} found</p>
                     {entry.matches.map((m) => {
-                      const isAcceptedMatch = acceptedMatches.some((am) => am.id === m.id);
-                      const gigLocked = acceptedMatches.length > 0 && !isAcceptedMatch;
+                      // Check if ANY match in THIS chat entry has been accepted
+                      const acceptedInThisEntry = entry.matches!.some((em) => em.decision === 'accepted');
+                      const isAcceptedMatch = m.decision === 'accepted';
+                      // Only grey out if there's an accepted match in this entry and this isn't it
+                      const gigLocked = acceptedInThisEntry && !isAcceptedMatch;
                       const contractorDecision = demoExtras?.[m.id]?.contractor_decision ?? 'pending';
                       const scheduledFor = demoExtras?.[m.id]?.scheduled_for ?? null;
                       return (

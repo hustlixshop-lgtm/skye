@@ -1,5 +1,5 @@
 import { useState, useRef, useEffect } from 'react';
-import { Send, Bot, User, Sparkles, Menu, Settings, MapPin, DollarSign, Shield, Mic, MicOff } from 'lucide-react';
+import { Send, Bot, User, Sparkles, Menu, Settings, MapPin, DollarSign, Shield, Mic, MicOff, X } from 'lucide-react';
 import type { UserProfile, Gig, GigMatch, ChatMessage } from '../lib/supabase';
 import { useMiloChat } from '../hooks/useMiloChat';
 import { TelemetryCard } from './TelemetryCard';
@@ -34,9 +34,14 @@ export function ChatPage({
   const [showSidebar, setShowSidebar] = useState(true);
   const [activeTab, setActiveTab] = useState<'browse' | 'my-gigs'>('browse');
   const [isListening, setIsListening] = useState(false);
+  const [dismissedItems, setDismissedItems] = useState<Set<string>>(new Set());
   const bottomRef = useRef<HTMLDivElement>(null);
   const inputRef = useRef<HTMLTextAreaElement>(null);
   const recognitionRef = useRef<any>(null);
+
+  const dismissItem = (id: string) => {
+    setDismissedItems((prev) => new Set([...prev, id]));
+  };
 
   const { entries, isThinking, handleUserMessage, handleAcceptMatch, handleDeclineMatch, handleReleaseEscrow, handleFinishAndPay } = useMiloChat({
     profile, userId, sessionId, onSaveGig, onSaveMatches, onUpdateMatchDecision, onReleaseEscrow, onFinishAndPay, onPersistMessage,
@@ -79,8 +84,6 @@ export function ChatPage({
     setIsListening(true);
   };
 
-  const acceptedMatch = matches.find((m) => m.decision === 'accepted');
-  const gigLocked = !!acceptedMatch;
   const pendingMatches = matches.filter((m) => m.decision === null && m.escrow_status === 'pending');
   const acceptedMatches = matches.filter((m) => m.decision === 'accepted');
 
@@ -117,9 +120,16 @@ export function ChatPage({
                 {activeGigs.filter((g) => g.type === 'post' && g.status === 'open').length === 0 ? (
                   <p className="text-xs text-gray-400 dark:text-gray-500">No gigs available. Ask Milo!</p>
                 ) : (
-                  activeGigs.filter((g) => g.type === 'post' && g.status === 'open').slice(0, 5).map((gig) => (
-                    <div key={gig.id} className="p-2.5 bg-white dark:bg-gray-800/50 rounded-lg border border-gray-100 dark:border-gray-800 card-hover">
-                      <p className="text-xs text-gray-900 dark:text-white font-medium truncate">{gig.title}</p>
+                  activeGigs.filter((g) => g.type === 'post' && g.status === 'open' && !dismissedItems.has(g.id)).slice(0, 5).map((gig) => (
+                    <div key={gig.id} className="p-2.5 bg-white dark:bg-gray-800/50 rounded-lg border border-gray-100 dark:border-gray-800 card-hover relative group">
+                      <button
+                        onClick={() => dismissItem(gig.id)}
+                        className="absolute top-1 right-1 w-4 h-4 flex items-center justify-center text-gray-300 hover:text-gray-500 dark:hover:text-gray-400 opacity-0 group-hover:opacity-100 transition-opacity"
+                        title="Dismiss"
+                      >
+                        <X className="w-3 h-3" />
+                      </button>
+                      <p className="text-xs text-gray-900 dark:text-white font-medium truncate pr-4">{gig.title}</p>
                       <p className="text-[10px] text-gray-400 mt-0.5">{gig.category}</p>
                       <div className="flex items-center gap-2 mt-1">
                         <span className="flex items-center gap-0.5 text-[10px] text-gray-400"><DollarSign className="w-2.5 h-2.5 text-brand-500" />${gig.pay_min}-${gig.pay_max}</span>
@@ -128,11 +138,18 @@ export function ChatPage({
                     </div>
                   ))
                 )}
-                {pendingMatches.length > 0 && (
+                {pendingMatches.filter((m) => !dismissedItems.has(m.id)).length > 0 && (
                   <>
                     <h3 className="text-[10px] font-bold text-gray-400 uppercase tracking-wider mt-3 mb-1">Pending</h3>
-                    {pendingMatches.map((m) => (
-                      <div key={m.id} className="p-2.5 bg-amber-50 dark:bg-amber-500/5 rounded-lg border border-amber-200 dark:border-amber-500/20">
+                    {pendingMatches.filter((m) => !dismissedItems.has(m.id)).map((m) => (
+                      <div key={m.id} className="p-2.5 bg-amber-50 dark:bg-amber-500/5 rounded-lg border border-amber-200 dark:border-amber-500/20 relative group">
+                        <button
+                          onClick={() => dismissItem(m.id)}
+                          className="absolute top-1 right-1 w-4 h-4 flex items-center justify-center text-amber-400 hover:text-amber-600 dark:hover:text-amber-300 opacity-0 group-hover:opacity-100 transition-opacity"
+                          title="Dismiss"
+                        >
+                          <X className="w-3 h-3" />
+                        </button>
                         <div className="flex items-center justify-between">
                           <span className="text-xs text-gray-900 dark:text-white font-medium">{m.matched_user_name}</span>
                           <span className="text-[10px] text-amber-600 dark:text-amber-400 font-bold">{m.match_score}%</span>
@@ -229,15 +246,21 @@ export function ChatPage({
                   </div>
                   <div className="flex-1 max-w-[92%] space-y-2">
                     <p className="text-[10px] text-gray-400 font-bold">{entry.matches.length} match{entry.matches.length !== 1 ? 'es' : ''} found</p>
-                    {entry.matches.map((m) => (
-                      <MatchCard key={m.id} match={m} gigLocked={gigLocked} chosenWorker={m.decision === 'accepted'}
-                        contractorDecision={demoExtras[m.id]?.contractor_decision ?? 'pending'}
-                        scheduledFor={demoExtras[m.id]?.scheduled_for ?? null}
-                        onAccept={(id) => void handleAcceptMatch(id, entry.matches!)}
-                        onDecline={(id) => void handleDeclineMatch(id)}
-                        onReleaseEscrow={(id) => void handleReleaseEscrow(id, entry.matches!)}
-                        onFinishAndPay={(id) => void handleFinishAndPay(id, entry.matches!)} />
-                    ))}
+                    {entry.matches.map((m) => {
+                      const isAcceptedMatch = acceptedMatches.some((am) => am.id === m.id);
+                      const gigLocked = acceptedMatches.length > 0 && !isAcceptedMatch;
+                      const contractorDecision = demoExtras?.[m.id]?.contractor_decision ?? 'pending';
+                      const scheduledFor = demoExtras?.[m.id]?.scheduled_for ?? null;
+                      return (
+                        <MatchCard key={m.id} match={m} gigLocked={gigLocked} chosenWorker={isAcceptedMatch}
+                          contractorDecision={contractorDecision}
+                          scheduledFor={scheduledFor}
+                          onAccept={(id) => void handleAcceptMatch(id, entry.matches!)}
+                          onDecline={(id) => void handleDeclineMatch(id)}
+                          onReleaseEscrow={(id) => void handleReleaseEscrow(id, entry.matches!)}
+                          onFinishAndPay={(id) => void handleFinishAndPay(id, entry.matches!)} />
+                      );
+                    })}
                   </div>
                 </div>
               );

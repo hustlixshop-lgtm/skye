@@ -62,41 +62,47 @@ export function useAppState() {
 
     async function load() {
       setLoading(true);
-      const [profileRes, gigsRes, openGigsRes, matchesRes, messagesRes, sessionsRes, walletRes, txRes, notifsRes, appsRes] = await Promise.all([
-        supabase.from('user_profiles').select('*').eq('user_id', userId).maybeSingle(),
-        supabase.from('gigs').select('*').eq('user_id', userId).in('status', ['open', 'matched', 'in_progress']).order('created_at', { ascending: false }),
-        supabase.from('gigs').select('*').eq('type', 'post').eq('status', 'open').order('created_at', { ascending: false }).limit(50),
-        supabase.from('gig_matches').select('*').eq('user_id', userId).order('created_at', { ascending: false }),
-        supabase.from('chat_messages').select('*').eq('user_id', userId).order('created_at', { ascending: true }).limit(200),
-        supabase.from('chat_sessions').select('*').eq('user_id', userId).order('updated_at', { ascending: false }),
-        supabase.from('wallets').select('*').eq('user_id', userId).maybeSingle(),
-        supabase.from('wallet_transactions').select('*').eq('user_id', userId).order('created_at', { ascending: false }).limit(50),
-        supabase.from('notifications').select('*').eq('user_id', userId).order('created_at', { ascending: false }).limit(30),
-        supabase.from('gig_applications').select('*').or(`applicant_id.eq.${userId}`).order('created_at', { ascending: false }),
-      ]);
+      try {
+        const [profileRes, gigsRes, openGigsRes, matchesRes, messagesRes, sessionsRes, walletRes, txRes, notifsRes, appsRes] = await Promise.all([
+          supabase.from('user_profiles').select('*').eq('user_id', userId).maybeSingle(),
+          supabase.from('gigs').select('*').eq('user_id', userId).in('status', ['open', 'matched', 'in_progress']).order('created_at', { ascending: false }),
+          supabase.from('gigs').select('*').eq('type', 'post').eq('status', 'open').order('created_at', { ascending: false }).limit(50),
+          supabase.from('gig_matches').select('*').eq('user_id', userId).order('created_at', { ascending: false }),
+          supabase.from('chat_messages').select('*').eq('user_id', userId).order('created_at', { ascending: true }).limit(200),
+          supabase.from('chat_sessions').select('*').eq('user_id', userId).order('updated_at', { ascending: false }),
+          supabase.from('wallets').select('*').eq('user_id', userId).maybeSingle(),
+          supabase.from('wallet_transactions').select('*').eq('user_id', userId).order('created_at', { ascending: false }).limit(50),
+          supabase.from('notifications').select('*').eq('user_id', userId).order('created_at', { ascending: false }).limit(30),
+          supabase.from('gig_applications').select('*').or(`applicant_id.eq.${userId}`).order('created_at', { ascending: false }),
+        ]);
 
-      if (profileRes.data) setProfile(profileRes.data as UserProfile);
-      if (gigsRes.data) setActiveGigs(gigsRes.data as Gig[]);
-      if (openGigsRes.data) setAllOpenGigs(openGigsRes.data as Gig[]);
-      if (matchesRes.data) setMatches(matchesRes.data as GigMatch[]);
-      if (messagesRes.data) setMessages(messagesRes.data as ChatMessage[]);
-      if (sessionsRes.data) {
-        setSessions(sessionsRes.data as ChatSession[]);
-        if (sessionsRes.data.length > 0 && !currentSessionId) {
-          setCurrentSessionId(sessionsRes.data[0].id);
+        if (profileRes.data) setProfile(profileRes.data as UserProfile);
+        if (gigsRes.data) setActiveGigs(gigsRes.data as Gig[]);
+        if (openGigsRes.data) setAllOpenGigs(openGigsRes.data as Gig[]);
+        if (matchesRes.data) setMatches(matchesRes.data as GigMatch[]);
+        if (messagesRes.data) setMessages(messagesRes.data as ChatMessage[]);
+        if (sessionsRes.data) {
+          setSessions(sessionsRes.data as ChatSession[]);
+          if (sessionsRes.data.length > 0 && !currentSessionId) {
+            setCurrentSessionId(sessionsRes.data[0].id);
+          }
         }
-      }
-      if (walletRes.data) setWallet(walletRes.data as Wallet);
-      if (txRes.data) setTransactions(txRes.data as WalletTransaction[]);
-      if (notifsRes.data) setNotifications(notifsRes.data as Notification[]);
-      if (appsRes.data) setApplications(appsRes.data as GigApplication[]);
+        if (walletRes.data) setWallet(walletRes.data as Wallet);
+        if (txRes.data) setTransactions(txRes.data as WalletTransaction[]);
+        if (notifsRes.data) setNotifications(notifsRes.data as Notification[]);
+        if (appsRes.data) setApplications(appsRes.data as GigApplication[]);
 
-      if (!walletRes.data) {
-        const { data: newWallet } = await supabase.from('wallets').insert([{ user_id: userId, balance: 0 }]).select().maybeSingle();
-        if (newWallet) setWallet(newWallet as Wallet);
+        if (!walletRes.data) {
+          const { data: newWallet } = await supabase.from('wallets').insert([{ user_id: userId, balance: 0 }]).select().maybeSingle();
+          if (newWallet) setWallet(newWallet as Wallet);
+        }
+      } catch (err) {
+        console.warn('Supabase fetch failed, using local state:', err);
+        // Graceful fallback to local mock state
+        // Data remains as initialized (empty arrays)
+      } finally {
+        setLoading(false);
       }
-
-      setLoading(false);
     }
     load();
   }, [userId]);

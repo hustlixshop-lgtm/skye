@@ -91,24 +91,31 @@ export function useMiloChat({
     loadedSessionRef.current = sessionId;
 
     async function loadMessages() {
-      const { data } = await supabase
-        .from('chat_messages')
-        .select('*')
-        .eq('session_id', sessionId)
-        .order('created_at', { ascending: true });
+      try {
+        const { data } = await supabase
+          .from('chat_messages')
+          .select('*')
+          .eq('session_id', sessionId)
+          .order('created_at', { ascending: true });
 
-      if (data && data.length > 0) {
-        setEntries(data.map((m) => dbMessageToEntry(m as ChatMessage)));
-        // Determine current phase from last message
-        const last = data[data.length - 1] as ChatMessage;
-        if (last.message_type === 'match_cards') {
-          setPhase('browsing_matches');
-        } else if (last.message_type === 'status' || last.message_type === 'error') {
-          setPhase('mode_select');
+        if (data && data.length > 0) {
+          setEntries(data.map((m) => dbMessageToEntry(m as ChatMessage)));
+          // Determine current phase from last message
+          const last = data[data.length - 1] as ChatMessage;
+          if (last.message_type === 'match_cards') {
+            setPhase('browsing_matches');
+          } else if (last.message_type === 'status' || last.message_type === 'error') {
+            setPhase('mode_select');
+          } else {
+            setPhase('mode_select');
+          }
         } else {
+          setEntries([makeEntry('agent', getMiloGreeting())]);
           setPhase('mode_select');
         }
-      } else {
+      } catch (err) {
+        console.warn('Failed to load chat messages:', err);
+        // Fallback to greeting
         setEntries([makeEntry('agent', getMiloGreeting())]);
         setPhase('mode_select');
       }
@@ -234,6 +241,76 @@ export function useMiloChat({
     }
   }, [profile, userId, onSaveGig, onSaveMatches, agentSay, resetConversation, sessionId]);
 
+  const handleWorkerModeFlow = useCallback(async (data: ExtractedGigData, rawMessage: string) => {
+    const telEntry = makeEntry('agent', '', 'telemetry', { showTelemetry: true });
+    setEntries((prev) => [...prev, telEntry]);
+    void onPersistMessage({ role: 'agent', content: '', message_type: 'telemetry', metadata: {}, session_id: sessionId });
+    setPhase('submitted');
+
+    try {
+      // Generate mock available gigs based on user preferences
+      const categories = ['Tech Support', 'Tutoring', 'Moving & Lifting', 'Pet Care', 'Photography', 'Graphic Design', 'Errands', 'Event Help'];
+      const locations = ['East Hall', 'North Campus', 'Student Union', 'Library', 'Engineering Quad', 'South Dorms', 'Arts Building', 'West Village'];
+
+      const availableGigs: GigMatch[] = [];
+      const numGigs = 3 + Math.floor(Math.random() * 2); // 3-4 gigs
+
+      for (let i = 0; i < numGigs; i++) {
+        const cat = data.category !== 'Other' && data.category ? data.category : categories[Math.floor(Math.random() * categories.length)];
+        const loc = locations[Math.floor(Math.random() * locations.length)];
+        const payMin = data.pay_min ?? 15;
+        const payMax = data.pay_max ?? 40;
+        const posterName = ['Sam Johnson', 'Taylor Lee', 'Jordan Kim', 'Casey Brown', 'Riley Davis'][i % 5];
+
+        availableGigs.push({
+          id: crypto.randomUUID(),
+          gig_id: crypto.randomUUID(),
+          user_id: userId,
+          matched_user_name: posterName,
+          matched_user_id: `poster-${i}`,
+          match_score: 75 + Math.floor(Math.random() * 20),
+          title: `${cat} Help Needed`,
+          category: cat,
+          pay_min: payMin,
+          pay_max: payMax,
+          campus_location: loc,
+          walk_time_mins: 3 + Math.floor(Math.random() * 12),
+          description: `Looking for someone skilled in ${cat.toLowerCase()}. Flexible timing, pay negotiable.`,
+          distance_miles: 0.3 + Math.random() * 1.5,
+          interest_tags: [cat, 'Flexible Schedule', 'Quick Turnaround'],
+          reasoning: {
+            interest_similarity_weight: 65 + Math.floor(Math.random() * 20),
+            distance_penalization_factor: 50 + Math.floor(Math.random() * 30),
+            contextual_boost: 70,
+            details: `Matches your interest in ${cat.toLowerCase()}. Located ${loc}.`,
+          },
+          decision: null,
+          escrow_status: 'pending',
+          created_at: new Date().toISOString(),
+          updated_at: new Date().toISOString(),
+        });
+      }
+
+      agentSay(
+        `Found **${availableGigs.length} available gigs** matching your interests! Here's what's available:`,
+        'text'
+      );
+
+      const gigEntry = makeEntry('agent', '', 'match_cards', { matches: availableGigs });
+      setEntries((prev) => [...prev, gigEntry]);
+      void onPersistMessage({ role: 'agent', content: '', message_type: 'match_cards', metadata: { matches: availableGigs }, session_id: sessionId });
+      setPhase('browsing_matches');
+    } catch (err: unknown) {
+      agentSay(
+        "Something went wrong finding gigs. Please try again.",
+        'error'
+      );
+      resetConversation();
+    } finally {
+      setIsThinking(false);
+    }
+  }, [userId, agentSay, resetConversation, sessionId, onPersistMessage]);
+
   const handleUserMessage = useCallback(async (text: string) => {
     const trimmed = text.trim();
     if (!trimmed || isThinking) return;
@@ -307,7 +384,11 @@ export function useMiloChat({
       const confirmed = lower.includes('yes') || lower.includes('correct') || lower.includes('good') || lower.includes('post it') || lower.includes('submit') || lower.includes('looks right') || lower === 'y';
       if (confirmed) {
         agentSay(getMiloResponse('submitted', gigData, trimmed));
-        await handleWebhookFlow(gigData, trimmed);
+        if (gigData.mode === 'search') {
+          await handleWorkerModeFlow(gigData, trimmed);
+        } else {
+          await handleWebhookFlow(gigData, trimmed);
+        }
       } else {
         setPhase('collect_category');
         agentSay("No problem! Let's adjust. What would you like to change?");

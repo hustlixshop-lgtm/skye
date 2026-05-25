@@ -30,6 +30,7 @@ type UseMiloChatOptions = {
   onSaveMatches: (gigId: string, matches: GigMatch[]) => Promise<void>;
   onUpdateMatchDecision: (matchId: string, decision: 'accepted' | 'rejected') => Promise<void>;
   onReleaseEscrow: (matchId: string) => Promise<void>;
+  onFinishAndPay: (matchId: string) => Promise<void>;
   onPersistMessage: (msg: Omit<ChatMessage, 'id' | 'user_id' | 'created_at'>) => Promise<void>;
 };
 
@@ -73,6 +74,7 @@ export function useMiloChat({
   onSaveMatches,
   onUpdateMatchDecision,
   onReleaseEscrow,
+  onFinishAndPay,
   onPersistMessage,
 }: UseMiloChatOptions) {
   const [entries, setEntries] = useState<ChatEntry[]>([]);
@@ -329,7 +331,12 @@ export function useMiloChat({
   const handleAcceptMatch = useCallback(async (matchId: string, allMatches: GigMatch[]) => {
     await onUpdateMatchDecision(matchId, 'accepted');
     const match = allMatches.find((m) => m.id === matchId);
-    agentSay(match ? `Payment of **$${match.pay_max}** is now held in escrow. ${match.matched_user_name} has been notified - your gig is in progress!` : 'Match accepted! Escrow is now active.', 'status');
+    agentSay(
+      match
+        ? `**$${match.pay_max}** is now held in escrow. Waiting on **${match.matched_user_name}** to accept the job. Open their demo profile to respond on their behalf.`
+        : 'Match accepted! Escrow is now active.',
+      'status'
+    );
   }, [onUpdateMatchDecision, agentSay]);
 
   const handleDeclineMatch = useCallback(async (matchId: string) => {
@@ -342,5 +349,16 @@ export function useMiloChat({
     agentSay(match ? `Escrow released - $${match.pay_max} sent to ${match.matched_user_name}. Gig complete!` : 'Escrow payment released.', 'status');
   }, [onReleaseEscrow, agentSay]);
 
-  return { entries, phase, isThinking, currentGigId, handleUserMessage, handleAcceptMatch, handleDeclineMatch, handleReleaseEscrow };
+  const handleFinishAndPay = useCallback(async (matchId: string, allMatches: GigMatch[]) => {
+    await onFinishAndPay(matchId);
+    const match = allMatches.find((m) => m.id === matchId);
+    agentSay(
+      match
+        ? `Payment complete! **$${match.pay_max}** was released from escrow to ${match.matched_user_name}. Thanks for using Milo.`
+        : 'Payment released. Gig complete!',
+      'status'
+    );
+  }, [onFinishAndPay, agentSay]);
+
+  return { entries, phase, isThinking, currentGigId, handleUserMessage, handleAcceptMatch, handleDeclineMatch, handleReleaseEscrow, handleFinishAndPay };
 }

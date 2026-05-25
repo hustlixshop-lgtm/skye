@@ -63,13 +63,19 @@ export async function sendWebhookRequest(
   payload: WebhookPayload,
   signal?: AbortSignal
 ): Promise<WebhookResponse> {
+  const timeoutController = new AbortController();
+  const timeoutId = setTimeout(() => timeoutController.abort(), 4000);
+  const combinedSignal = signal
+    ? anySignal([signal, timeoutController.signal])
+    : timeoutController.signal;
   try {
     const response = await fetch(MATCH_ENDPOINT, {
       method: 'POST',
       headers: { 'Content-Type': 'application/json' },
       body: JSON.stringify(payload),
-      signal,
+      signal: combinedSignal,
     });
+    clearTimeout(timeoutId);
 
     if (!response.ok) {
       throw new Error(`Agent returned ${response.status}: ${response.statusText}`);
@@ -79,14 +85,28 @@ export async function sendWebhookRequest(
     if (data.success && data.matches && data.matches.length > 0) {
       return data as WebhookResponse;
     }
-
-    // Fallback to mock if backend returns empty
     return generateMockMatches(payload);
-  } catch {
-    // Fallback to mock matches when backend is unreachable
-    await new Promise((r) => setTimeout(r, 1500));
+  } catch (err) {
+    clearTimeout(timeoutId);
+    if (err instanceof Error && err.name === 'AbortError' && signal?.aborted) {
+      throw err;
+    }
+    await new Promise((r) => setTimeout(r, 800));
     return generateMockMatches(payload);
   }
+}
+
+function anySignal(signals: AbortSignal[]): AbortSignal {
+  const controller = new AbortController();
+  for (const s of signals) {
+    if (s.aborted) { controller.abort(); break; }
+    s.addEventListener('abort', () => controller.abort(), { once: true });
+  }
+  return controller.signal;
+}
+
+export function findMockProfileIdxByName(name: string): number {
+  return MOCK_PROFILES.findIndex((p) => p.name === name);
 }
 
 export function buildWebhookPayload(
@@ -204,7 +224,7 @@ function generateMockMatches(payload: WebhookPayload): WebhookResponse {
   const matches: WebhookMatch[] = top.map((s) => ({
     id: crypto.randomUUID(),
     matched_user_name: s.profile.name,
-    matched_user_id: crypto.randomUUID(),
+    matched_user_id: `mock-${s.idx}`,
     match_score: s.matchScore,
     title: payload.request_details.title || 'Campus Gig',
     category: payload.request_details.category,

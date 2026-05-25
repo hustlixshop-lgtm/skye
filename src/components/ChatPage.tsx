@@ -4,6 +4,7 @@ import type { UserProfile, Gig, GigMatch, ChatMessage } from '../lib/supabase';
 import { useMiloChat } from '../hooks/useMiloChat';
 import { TelemetryCard } from './TelemetryCard';
 import { MatchCard } from './MatchCard';
+import { getDemoState, subscribeDemoStore } from '../lib/demoStore';
 
 type Props = {
   profile: UserProfile;
@@ -17,6 +18,7 @@ type Props = {
   onSaveMatches: (gigId: string, matches: GigMatch[]) => Promise<void>;
   onUpdateMatchDecision: (matchId: string, decision: 'accepted' | 'rejected') => Promise<void>;
   onReleaseEscrow: (matchId: string) => Promise<void>;
+  onFinishAndPay: (matchId: string) => Promise<void>;
   onPersistMessage: (msg: Omit<ChatMessage, 'id' | 'user_id' | 'created_at'>) => Promise<void>;
 };
 
@@ -26,7 +28,7 @@ function renderMarkdown(text: string): string {
 
 export function ChatPage({
   profile, userId, sessionId, activeGigs, matches, totalEscrow,
-  onOpenSettings, onSaveGig, onSaveMatches, onUpdateMatchDecision, onReleaseEscrow, onPersistMessage,
+  onOpenSettings, onSaveGig, onSaveMatches, onUpdateMatchDecision, onReleaseEscrow, onFinishAndPay, onPersistMessage,
 }: Props) {
   const [input, setInput] = useState('');
   const [showSidebar, setShowSidebar] = useState(true);
@@ -36,9 +38,13 @@ export function ChatPage({
   const inputRef = useRef<HTMLTextAreaElement>(null);
   const recognitionRef = useRef<any>(null);
 
-  const { entries, isThinking, handleUserMessage, handleAcceptMatch, handleDeclineMatch, handleReleaseEscrow } = useMiloChat({
-    profile, userId, sessionId, onSaveGig, onSaveMatches, onUpdateMatchDecision, onReleaseEscrow, onPersistMessage,
+  const { entries, isThinking, handleUserMessage, handleAcceptMatch, handleDeclineMatch, handleReleaseEscrow, handleFinishAndPay } = useMiloChat({
+    profile, userId, sessionId, onSaveGig, onSaveMatches, onUpdateMatchDecision, onReleaseEscrow, onFinishAndPay, onPersistMessage,
   });
+
+  // Subscribe to demoStore so MatchCard can react to contractor decisions.
+  const [demoExtras, setDemoExtras] = useState(() => getDemoState().matchExtras);
+  useEffect(() => subscribeDemoStore((s) => setDemoExtras(s.matchExtras)), []);
 
   useEffect(() => { bottomRef.current?.scrollIntoView({ behavior: 'smooth' }); }, [entries, isThinking]);
 
@@ -225,9 +231,12 @@ export function ChatPage({
                     <p className="text-[10px] text-gray-400 font-bold">{entry.matches.length} match{entry.matches.length !== 1 ? 'es' : ''} found</p>
                     {entry.matches.map((m) => (
                       <MatchCard key={m.id} match={m} gigLocked={gigLocked} chosenWorker={m.decision === 'accepted'}
+                        contractorDecision={demoExtras[m.id]?.contractor_decision ?? 'pending'}
+                        scheduledFor={demoExtras[m.id]?.scheduled_for ?? null}
                         onAccept={(id) => void handleAcceptMatch(id, entry.matches!)}
                         onDecline={(id) => void handleDeclineMatch(id)}
-                        onReleaseEscrow={(id) => void handleReleaseEscrow(id, entry.matches!)} />
+                        onReleaseEscrow={(id) => void handleReleaseEscrow(id, entry.matches!)}
+                        onFinishAndPay={(id) => void handleFinishAndPay(id, entry.matches!)} />
                     ))}
                   </div>
                 </div>

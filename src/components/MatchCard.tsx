@@ -1,17 +1,21 @@
 import { useState } from 'react';
-import { MapPin, DollarSign, Clock, Star, CheckCircle, XCircle, Shield, Tag, ChevronDown, ChevronUp, Navigation, Zap } from 'lucide-react';
+import { MapPin, DollarSign, Clock, Star, CheckCircle, XCircle, Shield, Tag, ChevronDown, ChevronUp, Navigation, Zap, Hourglass, BadgeCheck } from 'lucide-react';
 import type { GigMatch } from '../lib/supabase';
+import type { ContractorDecision } from '../lib/demoStore';
 
 type Props = {
   match: GigMatch;
   gigLocked?: boolean;
   chosenWorker?: boolean;
+  contractorDecision?: ContractorDecision;
+  scheduledFor?: string | null;
   onAccept: (matchId: string) => void;
   onDecline: (matchId: string) => void;
   onReleaseEscrow?: (matchId: string) => void;
+  onFinishAndPay?: (matchId: string) => void;
 };
 
-export function MatchCard({ match, gigLocked, chosenWorker, onAccept, onDecline, onReleaseEscrow }: Props) {
+export function MatchCard({ match, gigLocked, chosenWorker, contractorDecision = 'pending', scheduledFor, onAccept, onDecline, onReleaseEscrow, onFinishAndPay }: Props) {
   const [showReasoning, setShowReasoning] = useState(false);
 
   const scoreBg = match.match_score >= 90
@@ -88,8 +92,36 @@ export function MatchCard({ match, gigLocked, chosenWorker, onAccept, onDecline,
       </div>
 
       {match.decision === 'accepted' && escrowBadge && (
-        <div className={`inline-flex items-center gap-1 text-[10px] px-1.5 py-0.5 rounded-md mb-2 ${escrowBadge.color}`}>
-          <Shield className="w-2.5 h-2.5" /> {escrowBadge.label}
+        <div className="flex items-center gap-1.5 mb-2 flex-wrap">
+          <div className={`inline-flex items-center gap-1 text-[10px] px-1.5 py-0.5 rounded-md ${escrowBadge.color}`}>
+            <Shield className="w-2.5 h-2.5" /> {escrowBadge.label}
+          </div>
+          {contractorDecision === 'pending' && (
+            <div className="inline-flex items-center gap-1 text-[10px] px-1.5 py-0.5 rounded-md bg-amber-50 dark:bg-amber-500/10 text-amber-700 dark:text-amber-400">
+              <Hourglass className="w-2.5 h-2.5" /> Awaiting {match.matched_user_name}
+            </div>
+          )}
+          {contractorDecision === 'accepted' && (
+            <div className="inline-flex items-center gap-1 text-[10px] px-1.5 py-0.5 rounded-md bg-brand-50 dark:bg-brand-500/10 text-brand-700 dark:text-brand-400">
+              <BadgeCheck className="w-2.5 h-2.5" /> Contractor accepted - task started
+            </div>
+          )}
+          {contractorDecision === 'completed' && (
+            <div className="inline-flex items-center gap-1 text-[10px] px-1.5 py-0.5 rounded-md bg-cyan-50 dark:bg-cyan-500/10 text-cyan-700 dark:text-cyan-400">
+              <CheckCircle className="w-2.5 h-2.5" /> Marked complete
+              {scheduledFor && ` (due ${new Date(scheduledFor).toLocaleString()})`}
+            </div>
+          )}
+          {contractorDecision === 'declined' && (
+            <div className="inline-flex items-center gap-1 text-[10px] px-1.5 py-0.5 rounded-md bg-red-50 dark:bg-red-500/10 text-red-700 dark:text-red-400">
+              <XCircle className="w-2.5 h-2.5" /> Contractor declined - escrow refunded
+            </div>
+          )}
+          {contractorDecision === 'paid' && (
+            <div className="inline-flex items-center gap-1 text-[10px] px-1.5 py-0.5 rounded-md bg-brand-50 dark:bg-brand-500/10 text-brand-700 dark:text-brand-400">
+              <BadgeCheck className="w-2.5 h-2.5" /> Paid
+            </div>
+          )}
         </div>
       )}
 
@@ -142,10 +174,16 @@ export function MatchCard({ match, gigLocked, chosenWorker, onAccept, onDecline,
           </button>
         </div>
       )}
-      {match.decision === 'accepted' && match.escrow_status === 'held' && onReleaseEscrow && (
+      {match.decision === 'accepted' && match.escrow_status === 'held' && contractorDecision === 'completed' && onFinishAndPay && (
+        <button onClick={() => onFinishAndPay(match.id)}
+          className="w-full mt-2 py-2 bg-brand-500 hover:bg-brand-600 text-white text-xs font-medium rounded-md transition-colors">
+          Finish & Pay ${match.pay_max.toFixed(2)}
+        </button>
+      )}
+      {match.decision === 'accepted' && match.escrow_status === 'held' && contractorDecision !== 'completed' && contractorDecision !== 'declined' && onReleaseEscrow && (
         <button onClick={() => onReleaseEscrow(match.id)}
-          className="w-full mt-2 py-2 border border-brand-300 dark:border-brand-600 text-brand-600 dark:text-brand-400 hover:bg-brand-50 dark:hover:bg-brand-500/10 text-xs font-medium rounded-md transition-colors">
-          Release Escrow
+          className="w-full mt-2 py-2 border border-gray-200 dark:border-gray-700 text-gray-500 dark:text-gray-400 hover:bg-gray-50 dark:hover:bg-gray-800 text-xs font-medium rounded-md transition-colors">
+          Release Escrow Early
         </button>
       )}
     </div>

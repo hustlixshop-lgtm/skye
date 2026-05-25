@@ -2,6 +2,15 @@ import { useState, useEffect, useCallback, useRef } from 'react';
 import { supabase, type UserProfile, type Gig, type GigMatch, type ChatMessage, type ChatSession, type Wallet, type WalletTransaction, type GigApplication, type Notification } from '../lib/supabase';
 import type { Session } from '@supabase/supabase-js';
 import { MOCK_PROFILES } from '../lib/webhook';
+import {
+  getDemoState,
+  subscribeDemoStore,
+  setImpersonatedProfileIdx as setDemoImpersonated,
+  setMatchExtras as setDemoMatchExtras,
+  adjustDemoWallet,
+  type DemoStoreShape,
+  type ContractorDecision,
+} from '../lib/demoStore';
 
 export function useAppState() {
   const [session, setSession] = useState<Session | null>(null);
@@ -18,9 +27,17 @@ export function useAppState() {
   const [notifications, setNotifications] = useState<Notification[]>([]);
   const [applications, setApplications] = useState<GigApplication[]>([]);
   const [loading, setLoading] = useState(true);
-  const [devMode, setDevMode] = useState(false);
-  const [originalSession, setOriginalSession] = useState<Session | null>(null);
+  const [demoState, setDemoState] = useState<DemoStoreShape>(() => getDemoState());
   const gigGenRef = useRef<ReturnType<typeof setTimeout> | null>(null);
+
+  // Subscribe to client-side demo overlay (impersonation state, match extras, demo wallets)
+  useEffect(() => {
+    return subscribeDemoStore(setDemoState);
+  }, []);
+
+  const impersonatedProfileIdx = demoState.impersonatedProfileIdx;
+  const impersonatedProfile = impersonatedProfileIdx != null ? MOCK_PROFILES[impersonatedProfileIdx] : null;
+  const devMode = impersonatedProfileIdx != null;
 
   const userId = session?.user?.id ?? null;
 
@@ -174,7 +191,7 @@ export function useAppState() {
   const signOut = useCallback(async () => {
     await supabase.auth.signOut();
     setSession(null);
-    setDevMode(false);
+    setDemoImpersonated(null);
   }, []);
 
   const saveProfile = useCallback(async (data: Partial<Omit<UserProfile, 'id' | 'user_id' | 'created_at' | 'updated_at'>>) => {
@@ -249,9 +266,23 @@ export function useAppState() {
       if (match) {
         await supabase.from('gigs').update({ status: 'matched', escrow_held: true, escrow_amount: match.pay_max }).eq('id', match.gig_id);
         setActiveGigs((prev) => prev.map((g) => g.id === match.gig_id ? { ...g, status: 'matched', escrow_held: true, escrow_amount: match.pay_max } : g));
+        // Actually deduct the held amount from poster's wallet so the refund/payment flow shows a visible balance change.
+        if (wallet && wallet.balance >= match.pay_max) {
+          const newBalance = wallet.balance - match.pay_max;
+          await supabase.from('wallets').update({ balance: newBalance }).eq('id', wallet.id);
+          await supabase.from('wallet_transactions').insert([{
+            wallet_id: wallet.id,
+            user_id: userId,
+            type: 'escrow_hold',
+            amount: match.pay_max,
+            reference_id: match.gig_id,
+            description: `Escrow held for ${match.matched_user_name}`,
+          }]);
+          setWallet((prev) => prev ? { ...prev, balance: newBalance } : prev);
+        }
       }
     }
-  }, [matches]);
+  }, [matches, wallet, userId]);
 
   const releaseEscrow = useCallback(async (matchId: string) => {
     await supabase.from('gig_matches').update({ escrow_status: 'released' }).eq('id', matchId);
@@ -374,59 +405,116 @@ export function useAppState() {
     }
   }, [userId, matches]);
 
-  // Dev login: create account for a mock profile and sign in
+  // Dev login: client-side impersonation only — no Supabase auth swap.
+  // The original user's session is preserved so we can still mutate their
+  // gigs/matches/wallet on behalf of the contractor (refund, complete, etc.).
   const devLogin = useCallback(async (profileIdx: number) => {
-    const p = MOCK_PROFILES[profileIdx];
-    const email = `${p.name.toLowerCase().replace(/\s+/g, '.')}@milo-dev.local`;
-    const password = 'dev1234';
-
-    // Save current session
-    const { data: currentSession } = await supabase.auth.getSession();
-    if (currentSession.session) setOriginalSession(currentSession.session);
-
-    // Try signing in first
-    const { error: signInErr } = await supabase.auth.signInWithPassword({ email, password });
-    if (signInErr) {
-      // Create the account
-      const { data, error } = await supabase.auth.signUp({ email, password });
-      if (error) return { error: error.message };
-      if (data.user) {
-        await supabase.from('user_profiles').insert([{
-          user_id: data.user.id,
-          name: p.name,
-          role: 'both' as const,
-          campus_location: p.loc,
-          max_walk_time_mins: 20,
-          pay_min: 15,
-          pay_max: 50,
-          skills_interests: p.tags,
-          onboarding_complete: true,
-          bio: `Hi, I'm ${p.name}! Skilled in ${p.tags.slice(0, 2).join(' and ')}.`,
-          availability: 'flexible' as const,
-        }]);
-        // Create wallet with starting balance
-        await supabase.from('wallets').insert([{ user_id: data.user.id, balance: 500 }]);
-        // Sign in now
-        await supabase.auth.signInWithPassword({ email, password });
-      }
-    }
-    setDevMode(true);
+    setDemoImpersonated(profileIdx);
     return { error: null };
   }, []);
 
-  // Switch back to original account
   const devSwitchBack = useCallback(async () => {
-    if (!originalSession) return;
-    // Re-authenticate as original user
-    const { data } = await supabase.auth.getSession();
-    if (!data.session || data.session.user.id !== originalSession.user.id) {
-      // We need to sign in again - but we don't have the password
-      // Store the refresh token to restore the session
-      await supabase.auth.setSession({ access_token: originalSession.access_token, refresh_token: originalSession.refresh_token });
+    setDemoImpersonated(null);
+  }, []);
+
+  // Contractor (demo profile) accepts the match offered by the poster.
+  // Moves the gig into in_progress and notifies the poster.
+  const contractorAccept = useCallback(async (matchId: string) => {
+    const match = matches.find((m) => m.id === matchId);
+    if (!match) return;
+    setDemoMatchExtras(matchId, { contractor_decision: 'accepted', accepted_at: new Date().toISOString() });
+    await supabase.from('gigs').update({ status: 'in_progress' }).eq('id', match.gig_id);
+    setActiveGigs((prev) => prev.map((g) => g.id === match.gig_id ? { ...g, status: 'in_progress' } : g));
+    await supabase.from('notifications').insert([{
+      user_id: match.user_id,
+      type: 'application_accepted',
+      title: 'Contractor Accepted',
+      body: `${match.matched_user_name} accepted your gig and started the task.`,
+      reference_id: match.gig_id,
+    }]);
+  }, [matches]);
+
+  // Contractor declines: refund escrow to poster, reopen the gig.
+  const contractorDecline = useCallback(async (matchId: string) => {
+    const match = matches.find((m) => m.id === matchId);
+    if (!match) return;
+    setDemoMatchExtras(matchId, { contractor_decision: 'declined' });
+
+    // Refund: add the held amount back to poster's wallet
+    const { data: posterWallet } = await supabase.from('wallets').select('*').eq('user_id', match.user_id).maybeSingle();
+    if (posterWallet) {
+      const pw = posterWallet as Wallet;
+      const newBalance = pw.balance + match.pay_max;
+      await supabase.from('wallets').update({ balance: newBalance }).eq('id', pw.id);
+      await supabase.from('wallet_transactions').insert([{
+        wallet_id: pw.id,
+        user_id: match.user_id,
+        type: 'escrow_refund',
+        amount: match.pay_max,
+        reference_id: match.gig_id,
+        description: `Refund: ${match.matched_user_name} declined the gig`,
+      }]);
+      if (userId === match.user_id) {
+        setWallet((prev) => prev ? { ...prev, balance: newBalance } : prev);
+      }
     }
-    setDevMode(false);
-    setOriginalSession(null);
-  }, [originalSession]);
+
+    // Reset match + gig
+    await supabase.from('gig_matches').update({ decision: 'rejected', escrow_status: 'pending' }).eq('id', matchId);
+    setMatches((prev) => prev.map((m) => m.id === matchId ? { ...m, decision: 'rejected', escrow_status: 'pending' } : m));
+    await supabase.from('gigs').update({ status: 'open', escrow_held: false, escrow_amount: 0 }).eq('id', match.gig_id);
+    setActiveGigs((prev) => prev.map((g) => g.id === match.gig_id ? { ...g, status: 'open', escrow_held: false, escrow_amount: 0 } : g));
+
+    await supabase.from('notifications').insert([{
+      user_id: match.user_id,
+      type: 'escrow_refund',
+      title: 'Match Declined - Escrow Refunded',
+      body: `${match.matched_user_name} declined the gig. $${match.pay_max.toFixed(2)} was refunded to your wallet.`,
+      reference_id: match.gig_id,
+    }]);
+  }, [matches, userId]);
+
+  // Contractor marks the gig complete (optionally with a scheduled finish date/time).
+  const contractorMarkComplete = useCallback(async (matchId: string, scheduledFor: string | null) => {
+    const match = matches.find((m) => m.id === matchId);
+    if (!match) return;
+    setDemoMatchExtras(matchId, {
+      contractor_decision: 'completed',
+      scheduled_for: scheduledFor,
+      completed_at: new Date().toISOString(),
+    });
+    await supabase.from('notifications').insert([{
+      user_id: match.user_id,
+      type: 'gig_completion_pending',
+      title: 'Gig Marked Complete',
+      body: `${match.matched_user_name} marked "${match.title}" as complete. Approve payment from your match to release escrow.`,
+      reference_id: match.gig_id,
+    }]);
+  }, [matches]);
+
+  // Poster finishes & releases payment to the demo profile's wallet.
+  const finishAndPayMatch = useCallback(async (matchId: string) => {
+    const match = matches.find((m) => m.id === matchId);
+    if (!match || !wallet) return;
+    // Credit the demo (mock) profile's wallet locally
+    adjustDemoWallet(match.matched_user_name, match.pay_max);
+    // Mark match released, gig completed
+    await supabase.from('gig_matches').update({ escrow_status: 'released' }).eq('id', matchId);
+    setMatches((prev) => prev.map((m) => m.id === matchId ? { ...m, escrow_status: 'released' } : m));
+    await supabase.from('gigs').update({ status: 'completed', escrow_released: true }).eq('id', match.gig_id);
+    setActiveGigs((prev) => prev.map((g) => g.id === match.gig_id ? { ...g, status: 'completed', escrow_released: true } : g));
+    // Log a wallet transaction
+    const { data: tx } = await supabase.from('wallet_transactions').insert([{
+      wallet_id: wallet.id,
+      user_id: userId,
+      type: 'escrow_release',
+      amount: match.pay_max,
+      reference_id: match.gig_id,
+      description: `Paid ${match.matched_user_name} for ${match.title}`,
+    }]).select().single();
+    if (tx) setTransactions((prev) => [tx as WalletTransaction, ...prev]);
+    setDemoMatchExtras(matchId, { contractor_decision: 'paid' });
+  }, [matches, wallet, userId]);
 
   const totalEscrow = activeGigs.reduce((sum, g) => sum + (g.escrow_held && !g.escrow_released ? g.escrow_amount : 0), 0);
   const unreadCount = notifications.filter((n) => !n.is_read).length;
@@ -435,6 +523,7 @@ export function useAppState() {
     userId, session, authLoading, profile, activeGigs, allOpenGigs, matches, messages,
     sessions, currentSessionId, wallet, transactions, notifications, applications,
     loading, totalEscrow, unreadCount, devMode,
+    impersonatedProfileIdx, impersonatedProfile, demoState,
     signUp, signIn, signOut, saveProfile,
     createSession, deleteSession, switchSession, setCurrentSessionId,
     addMessage, saveGig, saveMatches, updateMatchDecision, releaseEscrow,
@@ -443,5 +532,6 @@ export function useAppState() {
     markGigComplete, approvePayment, requestRedo,
     markNotificationRead, markAllNotificationsRead,
     devLogin, devSwitchBack,
+    contractorAccept, contractorDecline, contractorMarkComplete, finishAndPayMatch,
   };
 }

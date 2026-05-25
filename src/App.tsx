@@ -9,6 +9,7 @@ import { WalletPage } from './components/WalletPage';
 import { NotificationsPanel } from './components/NotificationsPanel';
 import { ContractorPortal } from './components/ContractorPortal';
 import { DevLoginPanel } from './components/DevLoginPanel';
+import { DemoProfileDashboard } from './components/DemoProfileDashboard';
 import { useAppState } from './hooks/useAppState';
 import { useTheme } from './lib/theme';
 import type { Gig } from './lib/supabase';
@@ -24,7 +25,7 @@ function App() {
   const {
     userId, session, authLoading, profile, activeGigs, allOpenGigs, matches, sessions,
     currentSessionId, wallet, transactions, notifications, applications, loading,
-    totalEscrow, unreadCount, devMode,
+    totalEscrow, unreadCount, devMode, impersonatedProfileIdx,
     signUp, signIn, signOut, saveProfile,
     createSession, deleteSession, switchSession, addMessage,
     saveGig, saveMatches, updateMatchDecision, releaseEscrow,
@@ -32,6 +33,7 @@ function App() {
     markGigComplete, approvePayment, requestRedo,
     markNotificationRead, markAllNotificationsRead,
     devLogin, devSwitchBack,
+    contractorAccept, contractorDecline, contractorMarkComplete, finishAndPayMatch,
   } = useAppState();
 
   const handleSignUp = async (email: string, password: string, name: string) => {
@@ -76,6 +78,23 @@ function App() {
           <p className="text-gray-400 text-sm">Loading...</p>
         </div>
       </div>
+    );
+  }
+
+  // When impersonating a demo profile, hijack the entire view to show that profile's dashboard.
+  // The original user's Supabase session is still active so the contractor actions can mutate
+  // their gigs/matches/wallet on behalf of the demo profile.
+  if (impersonatedProfileIdx != null) {
+    return (
+      <DemoProfileDashboard
+        profileIdx={impersonatedProfileIdx}
+        matches={matches}
+        posterProfile={profile}
+        onBack={() => { void devSwitchBack(); }}
+        onAccept={contractorAccept}
+        onDecline={contractorDecline}
+        onMarkComplete={contractorMarkComplete}
+      />
     );
   }
 
@@ -210,6 +229,7 @@ function App() {
             onOpenSettings={() => navigateTo('settings')}
             onSaveGig={handleSaveGig} onSaveMatches={saveMatches}
             onUpdateMatchDecision={updateMatchDecision} onReleaseEscrow={releaseEscrow}
+            onFinishAndPay={finishAndPayMatch}
             onPersistMessage={addMessage}
           />
         ) : (

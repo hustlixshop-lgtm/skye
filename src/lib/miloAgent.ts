@@ -65,8 +65,16 @@ export function detectCategory(text: string): GigCategory {
 
 export function detectMode(text: string): GigMode {
   const lower = text.toLowerCase();
-  const postWords = ['post', 'need', 'want', 'looking for someone', 'hire', 'find someone', 'get help', 'i need'];
-  const searchWords = ['find', 'search', 'looking for a gig', 'earn', 'work', 'job', 'make money', 'help someone', 'offer'];
+  const postWords = ['post', 'need someone', 'hire', 'find someone', 'get help', 'i need someone', 'looking for someone'];
+  const searchWords = ['find a gig', 'search', 'looking for a gig', 'earn', 'work', 'job', 'make money', 'help someone', 'offer', 'undertake', 'i want to work', 'find work', 'want a gig', 'looking for work', 'gig for me'];
+
+  // Check for explicit worker/finder intent first
+  const workerPhrases = ['i want to work', 'find work', 'looking for work', 'find a gig', 'looking for a gig', 'want a job', 'need a gig', 'gig for me', 'i want a gig'];
+  if (workerPhrases.some((p) => lower.includes(p))) return 'search';
+
+  // Check for explicit poster/hirer intent
+  const posterPhrases = ['i need someone', 'need help with', 'hire someone', 'post a gig', 'find someone to'];
+  if (posterPhrases.some((p) => lower.includes(p))) return 'post';
 
   const postScore = postWords.filter((w) => lower.includes(w)).length;
   const searchScore = searchWords.filter((w) => lower.includes(w)).length;
@@ -130,7 +138,8 @@ export function getMiloResponse(phase: ConversationPhase, data: ExtractedGigData
       const pay = data.pay_min !== null && data.pay_max !== null
         ? `$${data.pay_min}–$${data.pay_max}`
         : 'Flexible';
-      return `Here's what I'll ${data.mode === 'post' ? 'post' : 'search for'}:\n\n**${data.title || data.category}**\n- Category: ${data.category}\n- Location: ${loc}\n- Pay: ${pay}\n- Description: ${data.description}\n\nDoes this look right? Say **"yes"** to ${data.mode === 'post' ? 'post it' : 'search'}, or let me know what to change.`;
+      const modeLabel = data.mode === 'search' ? 'Looking for gigs in' : 'Posting';
+      return `Here's what I'll ${data.mode === 'post' ? 'post for you' : 'search for'}:\n\n**${data.title || data.category}**\n- Category: ${data.category}\n- Location: ${loc}\n- Pay: ${pay}\n- Description: ${data.description}\n\nDoes this look right? Say **"yes"** to ${data.mode === 'post' ? 'post it' : 'find matching gigs'}, or let me know what to change.`;
     }
     case 'submitted':
       return data.mode === 'post'

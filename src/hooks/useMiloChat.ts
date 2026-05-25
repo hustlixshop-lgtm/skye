@@ -335,7 +335,7 @@ export function useMiloChat({
     await new Promise((r) => setTimeout(r, 400 + Math.random() * 300));
 
     if (phase === 'mode_select' || phase === 'greeting') {
-      const mode = detectMode(trimmed) ?? (lower.includes('post') ? 'post' : lower.includes('find') || lower.includes('search') || lower.includes('earn') ? 'search' : null);
+      const mode = detectMode(trimmed) ?? (lower.includes('post') || lower.includes('need someone') || lower.includes('hire') ? 'post' : lower.includes('find') || lower.includes('search') || lower.includes('earn') || lower.includes('work') || lower.includes('job') || lower.includes('gig') ? 'search' : null);
       if (!mode) {
         agentSay("I can help you **post a gig** (need something done) or **find a gig** (earn money). Which would you like?");
         setIsThinking(false);
@@ -398,16 +398,16 @@ export function useMiloChat({
     }
 
     if (phase === 'browsing_matches' || phase === 'submitted') {
-      agentSay("Your matches are shown above. Accept or decline each one. Want to post another gig?");
+      agentSay("Your options are shown above. Accept or decline each one. Want to search for something else?");
       resetConversation();
       setIsThinking(false);
       return;
     }
 
-    agentSay("I'm not sure I understood that. Are you looking to post a gig or find one?");
+    agentSay("I'm not sure I understood that. Are you looking to post a gig or find one to work on?");
     setPhase('mode_select');
     setIsThinking(false);
-  }, [phase, gigData, isThinking, profile, agentSay, handleWebhookFlow, resetConversation, onPersistMessage, sessionId]);
+  }, [phase, gigData, isThinking, profile, agentSay, handleWebhookFlow, handleWorkerModeFlow, resetConversation, onPersistMessage, sessionId]);
 
   const handleAcceptMatch = useCallback(async (matchId: string, allMatches: GigMatch[]) => {
     await onUpdateMatchDecision(matchId, 'accepted');

@@ -231,13 +231,14 @@ def build_match(raw: dict, task_label: str, category: str, pay_min: int, pay_max
 
 
 # ══════════════════════════════════════════════════════════════════
-#  UPDATED MOCK MATCHES FUNCTION WITH STABLE DETERMINISTIC UUIDs
+#  MOCK MATCHES FUNCTION WITH STABLE DETERMINISTIC UUIDs
 # ══════════════════════════════════════════════════════════════════
 def mock_matches(task_label: str, category: str, pay_min: int, pay_max: int, location: str, walk: int, resolved_user_role: str) -> List[dict]:
     """
     Scans the true local MOCK_PROFILES list and returns actual accounts that 
     partially match either the target location or keywords in the task.
-    Uses UUIDv5 namespacing to keep strings legally formatted for Supabase.
+    Uses structural UUIDv5 transformations to satisfy database constraints 
+    while establishing reliable links across frontend dashboards.
     """
     matched_peers = []
     task_lower = task_label.lower()
@@ -261,6 +262,7 @@ def mock_matches(task_label: str, category: str, pay_min: int, pay_max: int, loc
         matched_peers = [
             (MOCK_PROFILES[4]['name'], 95, MOCK_PROFILES[4]['loc']), # Priya Rao
             (MOCK_PROFILES[8]['name'], 91, MOCK_PROFILES[8]['loc']), # Luna Park
+            (MOCK_PROFILES[14]['name'], 88, MOCK_PROFILES[14]['loc']), # Chloe Kim
         ]
 
     role_flag = "Client" if resolved_user_role == "worker" else "Helper"
@@ -269,14 +271,25 @@ def mock_matches(task_label: str, category: str, pay_min: int, pay_max: int, loc
     # Base seed namespace to generate deterministic structural UUIDs from text strings
     NAMESPACE_MILO = uuid.UUID('6ba7b810-9dad-11d1-80b4-00c04fd430c8')
 
+    # Global mapping to lock specific characters to your application's expected view parameters
+    deterministic_match_ids = {
+        "luna-park": "b636f69d-7ca2-48df-9cde-9a84594efdf2",
+        "chloe-kim": "c138f71a-28bc-499d-81fe-0a91638fedb1",
+        "priya-rao": "a42948cf-3cbe-41de-bb47-195cbb41aa04"
+    }
+
     results = []
     for name, score, loc in matched_peers[:3]:
         slug_name = name.lower().replace(' ', '-')
         
-        # This converts text strings into database-acceptable UUIDs cleanly
-        # e.g. "luna-park" -> "5487779d-0974-569b-8e12-421711df77bf"
+        # Converts text strings into database-acceptable UUID structures cleanly
         assigned_user_id = str(uuid.uuid5(NAMESPACE_MILO, f"user-{slug_name}"))
-        generated_match_id = str(uuid.uuid5(NAMESPACE_MILO, f"match-live-{slug_name}"))
+        
+        # Use existing frontend intercept hashes if available, else derive cleanly
+        if slug_name in deterministic_match_ids:
+            generated_match_id = deterministic_match_ids[slug_name]
+        else:
+            generated_match_id = str(uuid.uuid5(NAMESPACE_MILO, f"match-live-{slug_name}"))
         
         results.append({
             "id": generated_match_id,

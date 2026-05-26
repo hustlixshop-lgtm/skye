@@ -71,7 +71,11 @@ export function useMiloChat({
   const [isThinking, setIsThinking] = useState(false);
   const loadedSessionRef = useRef<string | null>(null);
 
-  // Sync historical chat database logs on session instantiation
+  // Dynamic state that maps the user's intent FOR THIS SPECIFIC CHAT
+  const [activeRole, setActiveRole] = useState<'finder' | 'worker'>(
+    profile.role === 'both' ? 'worker' : (profile.role as 'finder' | 'worker')
+  );
+
   useEffect(() => {
     if (!sessionId || sessionId === loadedSessionRef.current) return;
     loadedSessionRef.current = sessionId;
@@ -97,7 +101,6 @@ export function useMiloChat({
           setPhase('mode_select');
         }
       } catch (err) {
-        console.warn('Failed to restore historical conversation data:', err);
         setEntries([makeEntry('agent', getMiloGreeting())]);
         setPhase('mode_select');
       }
@@ -117,8 +120,7 @@ export function useMiloChat({
       void onPersistMessage({
         role: 'agent',
         content,
-        message_type:
-          type === 'match_cards' ? 'match_cards' : type === 'telemetry' ? 'telemetry' : 'text',
+        message_type: type === 'match_cards' ? 'match_cards' : type === 'telemetry' ? 'telemetry' : 'text',
         metadata,
         session_id: sessionId,
       });
@@ -134,7 +136,6 @@ export function useMiloChat({
 
       const lower = trimmed.toLowerCase();
 
-      // 1. Escrow / Transaction short-circuit checks
       if (
         lower.includes('complete order') ||
         lower.includes('approve payment') ||
@@ -147,25 +148,35 @@ export function useMiloChat({
         if (activeHeldMatch) {
           setIsThinking(true);
           await onFinishAndPay(activeHeldMatch.id);
-          agentSay(
-            `Payment complete! $${activeHeldMatch.pay_max} released to ${activeHeldMatch.matched_user_name}.`,
-            'status'
-          );
+          
+          if (activeRole === 'worker') {
+            agentSay(`Payment processed completely! **$${activeHeldMatch.pay_max}** has arrived safely in your account balance from ${activeHeldMatch.matched_user_name}.`, 'status');
+          } else {
+            agentSay(`Payment complete! $${activeHeldMatch.pay_max} released out of your escrow holding to ${activeHeldMatch.matched_user_name}.`, 'status');
+          }
+          
           setIsThinking(false);
           return;
         }
       }
 
       setIsThinking(true);
-
-      // 2. Capture history BEFORE appending user bubble, then append user bubble
-      let historicalSnapshot: ChatEntry[] = [];
       const userEntry = makeEntry('user', trimmed);
 
-      setEntries((prev) => {
-        historicalSnapshot = [...prev];
-        return [...prev, userEntry];
-      });
+      const historicalMessages = entries
+        .filter(
+          (e) =>
+            (e.type === 'text' || e.type === 'status') &&
+            e.content &&
+            !e.content.includes('Welcome! I am Milo')
+        )
+        .map((e) => ({
+          role: e.role === 'agent' ? 'assistant' : 'user',
+          content: e.content,
+        }));
+
+      historicalMessages.push({ role: 'user', content: trimmed });
+      setEntries((prev) => [...prev, userEntry]);
 
       void onPersistMessage({
         role: 'user',
@@ -175,7 +186,6 @@ export function useMiloChat({
         session_id: sessionId,
       });
 
-      // 3. Add telemetry animation entry so user sees loading state
       const telemetryId = crypto.randomUUID();
       const telemetryEntry: ChatEntry = {
         id: telemetryId,
@@ -187,37 +197,12 @@ export function useMiloChat({
       setEntries((prev) => [...prev, telemetryEntry]);
 
       try {
-        // 4. Build full chat history for the AI — include ALL text turns (user + agent)
-        //    so the model has complete context across the conversation.
-        const historicalMessages = historicalSnapshot
-          .filter(
-            (e) =>
-              (e.type === 'text' || e.type === 'status') &&
-              e.content &&
-              !e.content.includes('Welcome! I am Milo')
-          )
-          .map((e) => ({
-            role: e.role === 'agent' ? 'assistant' : 'user',
-            content: e.content,
-          }));
-
-        // Always append the current user turn at the tail
-        historicalMessages.push({ role: 'user', content: trimmed });
-
-        const isPosting =
-          lower.includes('post') ||
-          lower.includes('hire') ||
-          lower.includes('need help') ||
-          lower.includes('pay') ||
-          lower.includes('looking for');
-
-        // 5. Compile payload — matches ContextualChatPayload in main.py exactly
         const payload = {
           session_id: sessionId || 'fallback-session',
           messages: historicalMessages,
           user_profile: {
             user_id: userId,
-            role: isPosting ? 'finder' : 'worker',
+            role: profile.role || 'both', // Send the raw profile role, Mistral handles 'both' natively
             location: profile.campus_location || 'Main Campus',
             max_walk_time_mins: profile.max_walk_time_mins || 15,
             payment_range: {
@@ -228,8 +213,6 @@ export function useMiloChat({
           },
         };
 
-        console.log('🚀 SENDING PAYLOAD TO FASTAPI MAIN.PY:', payload);
-
         const response = await fetch(MATCH_ENDPOINT, {
           method: 'POST',
           headers: { 'Content-Type': 'application/json' },
@@ -239,23 +222,22 @@ export function useMiloChat({
         if (!response.ok) throw new Error(`Server returned status: ${response.status}`);
 
         const data = await response.json();
-        console.log('✅ SYSTEM EVALUATION RESPONSE:', data);
-
-        // 6. Remove the telemetry animation entry now that we have a real response
         setEntries((prev) => prev.filter((e) => e.id !== telemetryId));
 
-        const serverMessage =
-          data.message || data.milo_response || 'Checking campus listings...';
+        // Dynamically shift the transaction role based on what the backend determined
+        const actionDirective = data.directive?.action;
+        if (actionDirective === 'search_gigs') setActiveRole('worker');
+        if (actionDirective === 'post_gig') setActiveRole('finder');
+
+        const serverMessage = data.message || data.milo_response || 'Checking campus listings...';
         agentSay(serverMessage, 'text');
 
-        // 7. KEY FIX: check data.matches directly — server never sends "slots_complete".
-        //    Matches are only returned when the backend has confirmed all slots are filled.
         if (Array.isArray(data.matches) && data.matches.length > 0) {
           const resolvedGigId = crypto.randomUUID();
           const compiledMatches: GigMatch[] = data.matches.map((m: any) => ({
             ...m,
             gig_id: m.gig_id || resolvedGigId,
-            user_id: m.user_id || userId,
+            user_id: userId, 
             decision: m.decision ?? null,
             escrow_status: m.escrow_status ?? 'pending',
             pay_max: m.pay_max ?? profile.pay_max ?? 50,
@@ -265,7 +247,6 @@ export function useMiloChat({
 
           await onSaveMatches(resolvedGigId, compiledMatches);
 
-          // Add system_cards entry — this is what ChatPage.tsx renders as the match grid
           const systemCardsEntry = makeEntry('system_cards', '', 'system_cards', {
             matches: compiledMatches,
           });
@@ -274,24 +255,18 @@ export function useMiloChat({
           void onPersistMessage({
             role: 'agent',
             content: '',
-            message_type: 'match_cards', // DB union doesn't include system_cards; match_cards is equivalent
+            message_type: 'match_cards',
             metadata: { matches: compiledMatches },
             session_id: sessionId,
           });
 
           setPhase('browsing_matches');
         } else {
-          // Still collecting slots or awaiting confirmation — stay in mode_select
           setPhase('mode_select');
         }
       } catch (err) {
-        console.error('❌ MILO ROUTING CRITICAL ERROR:', err);
-        // Remove telemetry on error too
         setEntries((prev) => prev.filter((e) => e.id !== telemetryId));
-        agentSay(
-          "I hit a temporary synchronization bottleneck. Let's step back—what can I set up for you?",
-          'error'
-        );
+        agentSay("I hit a temporary synchronization bottleneck. Let's step back—what can I find for you?", 'error');
         setPhase('mode_select');
       } finally {
         setIsThinking(false);
@@ -309,6 +284,7 @@ export function useMiloChat({
       onPersistMessage,
       agentSay,
       onFinishAndPay,
+      activeRole, // Included in dependencies so it resolves correctly
     ]
   );
 
@@ -316,14 +292,25 @@ export function useMiloChat({
     async (matchId: string, allMatches: GigMatch[]) => {
       await onUpdateMatchDecision(matchId, 'accepted');
       const targetMatch = allMatches.find((m) => m.id === matchId);
-      agentSay(
-        targetMatch
-          ? `You accepted the match. **$${targetMatch.pay_max}** is initialized in escrow. Once work concludes, confirm via chat or interface to release the payment.`
-          : 'Match confirmed. Escrow status transformed to held.',
-        'status'
-      );
+      
+      // Copy dynamically updates based on the current active chat session!
+      if (activeRole === 'worker') {
+        agentSay(
+          targetMatch
+            ? `Excellent! You accepted the gig from **${targetMatch.matched_user_name}**. They have safely escrowed **$${targetMatch.pay_max}** for you. When you finish the task, type 'Complete Order' here to receive your funds.`
+            : 'Gig assignment accepted. Client funds are initialized in escrow holding.',
+          'status'
+        );
+      } else {
+        agentSay(
+          targetMatch
+            ? `You accepted the match. **$${targetMatch.pay_max}** is initialized in escrow out of your profile balance. Once work concludes, type 'Complete Order' to release the payment to ${targetMatch.matched_user_name}.`
+            : 'Match confirmed. Escrow status transformed to held.',
+          'status'
+        );
+      }
     },
-    [onUpdateMatchDecision, agentSay]
+    [activeRole, onUpdateMatchDecision, agentSay]
   );
 
   const handleDeclineMatch = useCallback(
@@ -337,28 +324,38 @@ export function useMiloChat({
     async (matchId: string, allMatches: GigMatch[]) => {
       await onReleaseEscrow(matchId);
       const targetMatch = allMatches.find((m) => m.id === matchId);
-      agentSay(
-        targetMatch
-          ? `Escrow securely dispatched: $${targetMatch.pay_max} transferred to ${targetMatch.matched_user_name}.`
-          : 'Escrow contract successfully paid.',
-        'status'
-      );
+      
+      if (activeRole === 'worker') {
+        agentSay(targetMatch ? `Funds released! **$${targetMatch.pay_max}** has been deposited to your account.` : 'Escrow contract settled successfully.', 'status');
+      } else {
+        agentSay(targetMatch ? `Escrow securely dispatched: $${targetMatch.pay_max} transferred to ${targetMatch.matched_user_name}.` : 'Escrow contract successfully paid.', 'status');
+      }
     },
-    [onReleaseEscrow, agentSay]
+    [activeRole, onReleaseEscrow, agentSay]
   );
 
   const handleFinishAndPay = useCallback(
     async (matchId: string, allMatches: GigMatch[]) => {
       await onFinishAndPay(matchId);
       const targetMatch = allMatches.find((m) => m.id === matchId);
-      agentSay(
-        targetMatch
-          ? `Transaction completed. **$${targetMatch.pay_max}** was released directly out of holding to ${targetMatch.matched_user_name}.`
-          : 'Payment cleared. Order finalized!',
-        'status'
-      );
+      
+      if (activeRole === 'worker') {
+        agentSay(
+          targetMatch
+            ? `Transaction completed. **$${targetMatch.pay_max}** was released out of holding directly into your profile balance from ${targetMatch.matched_user_name}!`
+            : 'Payment cleared. Order finalized!',
+          'status'
+        );
+      } else {
+        agentSay(
+          targetMatch
+            ? `Transaction completed. **$${targetMatch.pay_max}** was released directly out of holding to ${targetMatch.matched_user_name}.`
+            : 'Payment cleared. Order finalized!',
+          'status'
+        );
+      }
     },
-    [onFinishAndPay, agentSay]
+    [activeRole, onFinishAndPay, agentSay]
   );
 
   return {

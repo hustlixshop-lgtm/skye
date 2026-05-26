@@ -27,14 +27,11 @@ app.add_middleware(
     allow_headers=["*"],
 )
 
-SUPABASE_URL = os.getenv("SUPABASE_URL", "https://bjoofaprhadqqrxamrbs.supabase.co")
-SUPABASE_KEY = os.getenv(
-    "SUPABASE_ANON_KEY",
-    "eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6ImJqb29mYXByaGFkcXFyeGFtcmJzIiwicm9sZSI6ImFub24iLCJpYXQiOjE3Nzk1MDI3OTQsImV4cCI6MjA5NTA3ODc5NH0.WGmN5_uqFPvS6NhOFGdF41diyzNTbO2v90vFG6lq5Ns",
-)
+SUPABASE_URL = os.getenv("VITE_SUPABASE_URL")
+SUPABASE_KEY = os.getenv("VITE_SUPABASE_ANON_KEY")
 supabase_client: Client = create_client(SUPABASE_URL, SUPABASE_KEY)
 
-MISTRAL_API_KEY = os.getenv("MISTRAL_API_KEY", "DakJZ15kXlCM9otxp28P96D1jqXdBoyK")
+MISTRAL_API_KEY = os.getenv("VITE_MISTRAL_API_KEY")
 mistral_client = Mistral(api_key=MISTRAL_API_KEY)
 
 

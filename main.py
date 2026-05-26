@@ -230,6 +230,9 @@ def build_match(raw: dict, task_label: str, category: str, pay_min: int, pay_max
     }
 
 
+# ══════════════════════════════════════════════════════════════════
+#  UPDATED MOCK MATCHES FUNCTION WITH STABLE DETERMINISTIC UUIDs
+# ══════════════════════════════════════════════════════════════════
 def mock_matches(task_label: str, category: str, pay_min: int, pay_max: int, location: str, walk: int, resolved_user_role: str) -> List[dict]:
     """
     Scans the true local MOCK_PROFILES list and returns actual accounts that 
@@ -239,43 +242,66 @@ def mock_matches(task_label: str, category: str, pay_min: int, pay_max: int, loc
     task_lower = task_label.lower()
     loc_lower = location.lower() if location else ""
 
-    # Step 1: Filter and score items from the real list
+    # Filter and score profiles from the real static list
     for profile in MOCK_PROFILES:
-        score = 70  # Baseline match score
-        
-        # Check if the location is close
+        score = 70
         if loc_lower and loc_lower in profile['loc'].lower():
             score += 15
-            
-        # Check if any profile tag hints at the task
         tag_match = False
         for tag in profile['tags']:
             if tag.lower() in task_lower or task_lower in tag.lower():
                 tag_match = True
                 score += 15
-                
-        # If it matches location or tag, capture it!
         if (loc_lower in profile['loc'].lower()) or tag_match:
-            # Clamp maximum matching score to 98
-            final_score = min(score, 98)
-            matched_peers.append((profile['name'], final_score, profile['loc']))
+            matched_peers.append((profile['name'], min(score, 98), profile['loc']))
 
-    # Fallback safety: if no one meets strict location/tag criteria, return two distinct profiles from the pool anyway
+    # Fallback to defaults if no location/tag intersection matches
     if not matched_peers:
         matched_peers = [
-            (MOCK_PROFILES[3]['name'], 85, MOCK_PROFILES[3]['loc']), # Liam Torres
-            (MOCK_PROFILES[9]['name'], 82, MOCK_PROFILES[9]['loc']), # Raj Gupta
+            (MOCK_PROFILES[4]['name'], 95, MOCK_PROFILES[4]['loc']), # Priya Rao
+            (MOCK_PROFILES[8]['name'], 91, MOCK_PROFILES[8]['loc']), # Luna Park
         ]
 
-    # Step 2: Build the standard payload structure
     role_flag = "Client" if resolved_user_role == "worker" else "Helper"
     title_suffix = "Needed" if resolved_user_role == "worker" else "Provider"
 
-    return [
-        {
-            "id": f"match-live-{name.lower().replace(' ', '-')}",
+    # CRITICAL FIX: These match the snake_case profile names used in your frontend matching links
+    deterministic_uuids = {
+        "Alex Chen": "alex-chen",
+        "Jordan Smith": "jordan-smith",
+        "Maya Patel": "maya-patel",
+        "Liam Torres": "liam-torres",
+        "Priya Rao": "priya-rao",
+        "Kai Nakamura": "kai-nakamura",
+        "Zara Okonkwo": "zara-okonkwo",
+        "Diego Reyes": "diego-reyes",
+        "Luna Park": "luna-park",
+        "Raj Gupta": "raj-gupta",
+        "Ava Williams": "ava-williams",
+        "Marcus Brown": "marcus-brown",
+        "Sofia Martinez": "sofia-martinez",
+        "Ethan Lee": "ethan-lee",
+        "Chloe Kim": "chloe-kim",
+        "Omar Hassan": "omar-hassan",
+        "Ruby Taylor": "ruby-taylor",
+        "James Chen": "james-chen",
+        "Isla Murphy": "isla-murphy",
+        "Leo Schmidt": "leo-schmidt"
+    }
+
+    results = []
+    for name, score, loc in matched_peers[:3]:
+        # Generate clean string patterns matching the query schema requirements
+        slug_name = name.lower().replace(' ', '-')
+        assigned_user_id = deterministic_uuids.get(name, slug_name)
+        
+        # Keep this clean and aligned with what your client dashboard checks
+        generated_match_id = f"match-live-{slug_name}"
+        
+        results.append({
+            "id": generated_match_id,
             "matched_user_name": f"{name} ({role_flag})",
-            "matched_user_id": f"mock-{name.lower().replace(' ', '-')}",
+            "matched_user_id": assigned_user_id,
             "match_score": score,
             "title": f"{task_label} {title_suffix}",
             "category": category,
@@ -286,10 +312,8 @@ def mock_matches(task_label: str, category: str, pay_min: int, pay_max: int, loc
             "description": f"Active profile matching your criteria at {loc}. Log in directly to simulate message handshakes.",
             "decision": None,
             "escrow_status": "pending",
-        }
-        for name, score, loc in matched_peers[:3] # Cap at top 3 matches maximum
-    ]
-
+        })
+    return results
 
 def build_messages(messages: List[ChatMessagePayload]) -> List[Dict[str, str]]:
     out = [{"role": "system", "content": SYSTEM_PROMPT}]
@@ -428,5 +452,5 @@ async def legacy_milo_agent_match_alias(payload: ContextualChatPayload):
 
 if __name__ == "__main__":
     import uvicorn
-    port = int(os.getenv("PORT", 10000))  # Updated default to Render friendly port
+    port = int(os.getenv("PORT", 10000))
     uvicorn.run("main:app", host="0.0.0.0", port=port, reload=True)

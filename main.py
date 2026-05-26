@@ -7,6 +7,7 @@ from fastapi import FastAPI, HTTPException
 from fastapi.middleware.cors import CORSMiddleware
 from pydantic import BaseModel, Field
 from mistralai.client import Mistral
+from mistralai.client.errors.sdkerror import SDKError
 from supabase import create_client, Client
 
 # ══════════════════════════════════════════════════════════════════
@@ -35,6 +36,33 @@ supabase_client: Client = create_client(SUPABASE_URL, SUPABASE_KEY)
 
 MISTRAL_API_KEY = os.getenv("MISTRAL_API_KEY", "DakJZ15kXlCM9otxp28P96D1jqXdBoyK")
 mistral_client = Mistral(api_key=MISTRAL_API_KEY)
+
+
+# ══════════════════════════════════════════════════════════════════
+#  REAL DEMO PROFILES REGISTRY
+# ══════════════════════════════════════════════════════════════════
+MOCK_PROFILES = [
+    { 'name': 'Alex Chen', 'tags': ['Tech/AI', 'Programming', 'Web Development'], 'loc': 'Engineering Quad' },
+    { 'name': 'Jordan Smith', 'tags': ['Fitness', 'Sports Training', 'Nutrition'], 'loc': 'Athletic Center' },
+    { 'name': 'Maya Patel', 'tags': ['Indie Music', 'Graphic Design', 'Photography'], 'loc': 'Arts Building' },
+    { 'name': 'Liam Torres', 'tags': ['Gamer', 'Streaming', 'Tech Support'], 'loc': 'North Campus' },
+    { 'name': 'Priya Rao', 'tags': ['Culinary Arts', 'Food & Grocery', 'Event Planning'], 'loc': 'Student Union' },
+    { 'name': 'Kai Nakamura', 'tags': ['Tech/AI', 'Gamer', 'Robotics'], 'loc': 'East Hall' },
+    { 'name': 'Zara Okonkwo', 'tags': ['Fitness', 'Dance', 'Photography'], 'loc': 'South Dorms' },
+    { 'name': 'Diego Reyes', 'tags': ['Culinary Arts', 'Music Production', 'Cleaning'], 'loc': 'West Village' },
+    { 'name': 'Luna Park', 'tags': ['Indie Music', 'Graphic Design', 'Creative Writing'], 'loc': 'Library' },
+    { 'name': 'Raj Gupta', 'tags': ['Programming', 'Tech/AI', 'Tutoring'], 'loc': 'Engineering Quad' },
+    { 'name': 'Ava Williams', 'tags': ['Pet Care', 'Fitness', 'Errands'], 'loc': 'North Campus' },
+    { 'name': 'Marcus Brown', 'tags': ['Moving & Lifting', 'Fitness', 'Culinary Arts'], 'loc': 'East Hall' },
+    { 'name': 'Sofia Martinez', 'tags': ['Photography', 'Event Help', 'Graphic Design'], 'loc': 'Student Union' },
+    { 'name': 'Ethan Lee', 'tags': ['Tech Support', 'Programming', 'Gamer'], 'loc': 'South Dorms' },
+    { 'name': 'Chloe Kim', 'tags': ['Tutoring', 'Creative Writing', 'Indie Music'], 'loc': 'Library' },
+    { 'name': 'Omar Hassan', 'tags': ['Culinary Arts', 'Event Planning', 'Fitness'], 'loc': 'West Village' },
+    { 'name': 'Ruby Taylor', 'tags': ['Photography', 'Videography', 'Indie Music'], 'loc': 'Arts Building' },
+    { 'name': 'James Chen', 'tags': ['Car Maintenance', 'Tech Support', 'Errands'], 'loc': 'Parking Garage' },
+    { 'name': 'Isla Murphy', 'tags': ['Pet Care', 'Culinary Arts', 'Cleaning'], 'loc': 'North Campus' },
+    { 'name': 'Leo Schmidt', 'tags': ['Moving & Lifting', 'Fitness', 'Gamer'], 'loc': 'East Hall' },
+]
 
 
 # ══════════════════════════════════════════════════════════════════
@@ -188,7 +216,7 @@ def build_match(raw: dict, task_label: str, category: str, pay_min: int, pay_max
     return {
         "id": str(uuid.uuid4()),
         "matched_user_name": raw.get("matched_user_name", "Campus Client"),
-        "matched_user_id": raw.get("matched_user_id", "mock-emily"),
+        "matched_user_id": raw.get("matched_user_id", f"mock-{uuid.uuid4().hex[:6]}"),
         "match_score": raw.get("match_score", 95),
         "title": raw.get("title", f"{task_label} Support"),
         "category": category,
@@ -201,39 +229,67 @@ def build_match(raw: dict, task_label: str, category: str, pay_min: int, pay_max
         "escrow_status": "pending",
     }
 
+
 def mock_matches(task_label: str, category: str, pay_min: int, pay_max: int, location: str, walk: int, resolved_user_role: str) -> List[dict]:
-    # Dynamic Mock Matches based on resolved intent!
-    if resolved_user_role == "worker":
-        # The user wants to EARN money -> Show them clients who will pay them
-        peers = [
-            ("Emily Rodriguez (Client)", "mock-emily", 96, "Looking to hire someone immediately. Payment pre-verified."),
-            ("Marcus Vance (Client)", "mock-marcus", 90, "Needs help on campus today. Safe budget in demo profile."),
-        ]
-    else:
-        # The user wants to HIRE someone -> Show them workers to fulfill the job
-        peers = [
-            ("Emily Rodriguez (Helper)", "mock-emily", 95, "Top-rated worker this semester. Ready to accept your escrow."),
-            ("Priya Kapoor (Helper)", "mock-priya", 89, "Highly skilled in this category. Complete demo profile verified."),
-        ]
+    """
+    Scans the true local MOCK_PROFILES list and returns actual accounts that 
+    partially match either the target location or keywords in the task.
+    """
+    matched_peers = []
+    task_lower = task_label.lower()
+    loc_lower = location.lower() if location else ""
+
+    # Step 1: Filter and score items from the real list
+    for profile in MOCK_PROFILES:
+        score = 70  # Baseline match score
         
+        # Check if the location is close
+        if loc_lower and loc_lower in profile['loc'].lower():
+            score += 15
+            
+        # Check if any profile tag hints at the task
+        tag_match = False
+        for tag in profile['tags']:
+            if tag.lower() in task_lower or task_lower in tag.lower():
+                tag_match = True
+                score += 15
+                
+        # If it matches location or tag, capture it!
+        if (loc_lower in profile['loc'].lower()) or tag_match:
+            # Clamp maximum matching score to 98
+            final_score = min(score, 98)
+            matched_peers.append((profile['name'], final_score, profile['loc']))
+
+    # Fallback safety: if no one meets strict location/tag criteria, return two distinct profiles from the pool anyway
+    if not matched_peers:
+        matched_peers = [
+            (MOCK_PROFILES[3]['name'], 85, MOCK_PROFILES[3]['loc']), # Liam Torres
+            (MOCK_PROFILES[9]['name'], 82, MOCK_PROFILES[9]['loc']), # Raj Gupta
+        ]
+
+    # Step 2: Build the standard payload structure
+    role_flag = "Client" if resolved_user_role == "worker" else "Helper"
+    title_suffix = "Needed" if resolved_user_role == "worker" else "Provider"
+
     return [
         {
-            "id": f"match-mock-{uuid.uuid4()}",
-            "matched_user_name": name,
-            "matched_user_id": uid,
+            "id": f"match-live-{name.lower().replace(' ', '-')}",
+            "matched_user_name": f"{name} ({role_flag})",
+            "matched_user_id": f"mock-{name.lower().replace(' ', '-')}",
             "match_score": score,
-            "title": f"{task_label} Needed" if resolved_user_role == "worker" else f"{task_label} Provider",
+            "title": f"{task_label} {title_suffix}",
             "category": category,
             "pay_min": pay_min,
             "pay_max": pay_max,
-            "campus_location": location,
-            "walk_time_mins": walk,
-            "description": desc,
+            "campus_location": loc,
+            "walk_time_mins": walk if walk > 0 else 10,
+            "description": f"Active profile matching your criteria at {loc}. Log in directly to simulate message handshakes.",
             "decision": None,
             "escrow_status": "pending",
         }
-        for name, uid, score, desc in peers
+        for name, score, loc in matched_peers[:3] # Cap at top 3 matches maximum
     ]
+
 
 def build_messages(messages: List[ChatMessagePayload]) -> List[Dict[str, str]]:
     out = [{"role": "system", "content": SYSTEM_PROMPT}]
@@ -265,6 +321,11 @@ async def process_milo_agent_routing(payload: ContextualChatPayload):
             temperature=0.15,
         )
         state: Optional[GigSlotTracker] = mistral_analysis.choices[0].message.parsed
+    except SDKError as sdk_err:
+        traceback.print_exc()
+        if "429" in str(sdk_err):
+            raise HTTPException(status_code=429, detail="Mistral API Rate Limit exceeded. Please slow down your requests.")
+        raise HTTPException(status_code=502, detail=f"Mistral SDK Error: {str(sdk_err)}")
     except Exception as mistral_err:
         traceback.print_exc()
         raise HTTPException(status_code=502, detail=f"Mistral API error: {str(mistral_err)}")
@@ -367,5 +428,5 @@ async def legacy_milo_agent_match_alias(payload: ContextualChatPayload):
 
 if __name__ == "__main__":
     import uvicorn
-    port = int(os.getenv("PORT", 8000))
+    port = int(os.getenv("PORT", 10000))  # Updated default to Render friendly port
     uvicorn.run("main:app", host="0.0.0.0", port=port, reload=True)

@@ -1,8 +1,7 @@
 import { useState, useRef, useEffect } from 'react';
-import { Send, Bot, User, Sparkles, Menu, Settings, MapPin, DollarSign, Shield, Mic, MicOff, X } from 'lucide-react';
+import { Send, Bot, User, Sparkles, Menu, Settings, MapPin, DollarSign, Shield, Mic, MicOff, X, Loader2 } from 'lucide-react';
 import type { UserProfile, Gig, GigMatch, ChatMessage } from '../lib/supabase';
 import { useMiloChat } from '../hooks/useMiloChat';
-import { TelemetryCard } from './TelemetryCard';
 import { MatchCard } from './MatchCard';
 import { getDemoState, subscribeDemoStore } from '../lib/demoStore';
 
@@ -24,7 +23,36 @@ type Props = {
 };
 
 function renderMarkdown(text: string): string {
-  return text.replace(/\*\*(.+?)\*\*/g, '<strong>$1</strong>').replace(/\*(.+?)\*/g, '<em>$1</em>').replace(/\n/g, '<br />');
+  return text
+    .replace(/\*\*(.+?)\*\*/g, '<strong>$1</strong>')
+    .replace(/\*(.+?)\*/g, '<em>$1</em>')
+    .replace(/\n/g, '<br />');
+}
+
+/** Animated searching indicator shown while telemetry entry is in the list */
+function SearchingAnimation() {
+  return (
+    <div className="flex gap-2 items-start">
+      <div className="w-6 h-6 bg-brand-500 rounded-md flex items-center justify-center flex-shrink-0 mt-0.5">
+        <Bot className="w-3 h-3 text-white" />
+      </div>
+      <div className="px-3 py-2.5 bg-brand-50 dark:bg-brand-500/10 border border-brand-200 dark:border-brand-500/20 rounded-xl rounded-tl-sm flex items-center gap-2.5">
+        <Loader2 className="w-3.5 h-3.5 text-brand-500 animate-spin flex-shrink-0" />
+        <span className="text-xs text-brand-600 dark:text-brand-300 font-medium">
+          Searching campus listings…
+        </span>
+        <div className="flex gap-0.5 items-center">
+          {[0, 120, 240].map((d) => (
+            <div
+              key={d}
+              className="w-1 h-1 bg-brand-400 rounded-full animate-bounce"
+              style={{ animationDelay: `${d}ms` }}
+            />
+          ))}
+        </div>
+      </div>
+    </div>
+  );
 }
 
 export function ChatPage({
@@ -257,15 +285,24 @@ export function ChatPage({
               </div>
             </div>
           )}
+
           {entries.map((entry) => {
             const isAgent = entry.role === 'agent';
 
-            if (entry.role === 'system_cards' && entry.matches) {
+            // ── Telemetry / searching animation ───────────────────────────────
+            if (entry.type === 'telemetry') {
+              return <SearchingAnimation key={entry.id} />;
+            }
+
+            // ── System cards: full-width match grid ───────────────────────────
+            if (entry.role === 'system_cards' && entry.matches && entry.matches.length > 0) {
               return (
                 <div key={entry.id} className="space-y-3">
                   <div className="px-3 py-2 bg-brand-50 dark:bg-brand-500/10 border border-brand-200 dark:border-brand-500/20 rounded-2xl">
                     <p className="text-[10px] font-semibold uppercase tracking-wide text-brand-600 dark:text-brand-300">Match results</p>
-                    <p className="mt-1 text-sm text-gray-700 dark:text-gray-200">I found candidates that best match your campus gig request. Review and select the worker you'd like to hire.</p>
+                    <p className="mt-1 text-sm text-gray-700 dark:text-gray-200">
+                      I found {entry.matches.length} candidate{entry.matches.length !== 1 ? 's' : ''} that match your request. Review and select the worker you'd like to hire.
+                    </p>
                   </div>
                   <div className="grid gap-3 sm:grid-cols-2 xl:grid-cols-3">
                     {entry.matches.map((m) => {
@@ -275,14 +312,19 @@ export function ChatPage({
                       const contractorDecision = demoExtras?.[m.id]?.contractor_decision ?? 'pending';
                       const scheduledFor = demoExtras?.[m.id]?.scheduled_for ?? null;
                       return (
-                        <MatchCard key={m.id} match={m} gigLocked={gigLocked} chosenWorker={isAcceptedMatch}
+                        <MatchCard
+                          key={m.id}
+                          match={m}
+                          gigLocked={gigLocked}
+                          chosenWorker={isAcceptedMatch}
                           contractorDecision={contractorDecision}
                           scheduledFor={scheduledFor}
                           onAccept={(id) => void handleAcceptMatch(id, entry.matches!)}
                           onDecline={(id) => void handleDeclineMatch(id)}
                           onReleaseEscrow={(id) => void handleReleaseEscrow(id, entry.matches!)}
                           onFinishAndPay={(id) => void handleFinishAndPay(id, entry.matches!)}
-                          onMarkComplete={(id) => void onContractorMarkComplete(id)} />
+                          onMarkComplete={(id) => void onContractorMarkComplete(id)}
+                        />
                       );
                     })}
                   </div>
@@ -290,25 +332,17 @@ export function ChatPage({
               );
             }
 
-            if (entry.type === 'telemetry') {
-              return (
-                <div key={entry.id} className="flex gap-2">
-                  <div className="w-6 h-6 bg-brand-500 rounded-md flex items-center justify-center flex-shrink-0 mt-0.5">
-                    <Bot className="w-3 h-3 text-white" />
-                  </div>
-                  <div className="flex-1 max-w-[85%]"><TelemetryCard /></div>
-                </div>
-              );
-            }
-
-            if (entry.type === 'match_cards' && entry.matches) {
+            // ── Inline match_cards (agent bubble style) ───────────────────────
+            if (entry.type === 'match_cards' && entry.matches && entry.matches.length > 0) {
               return (
                 <div key={entry.id} className="flex gap-2">
                   <div className="w-6 h-6 bg-brand-500 rounded-md flex items-center justify-center flex-shrink-0 mt-0.5">
                     <Bot className="w-3 h-3 text-white" />
                   </div>
                   <div className="flex-1 max-w-[92%] space-y-2">
-                    <p className="text-[10px] text-gray-400 font-bold">{entry.matches.length} match{entry.matches.length !== 1 ? 'es' : ''} found</p>
+                    <p className="text-[10px] text-gray-400 font-bold">
+                      {entry.matches.length} match{entry.matches.length !== 1 ? 'es' : ''} found
+                    </p>
                     {entry.matches.map((m) => {
                       const acceptedInThisEntry = entry.matches!.some((em) => em.decision === 'accepted');
                       const isAcceptedMatch = m.decision === 'accepted';
@@ -316,14 +350,19 @@ export function ChatPage({
                       const contractorDecision = demoExtras?.[m.id]?.contractor_decision ?? 'pending';
                       const scheduledFor = demoExtras?.[m.id]?.scheduled_for ?? null;
                       return (
-                        <MatchCard key={m.id} match={m} gigLocked={gigLocked} chosenWorker={isAcceptedMatch}
+                        <MatchCard
+                          key={m.id}
+                          match={m}
+                          gigLocked={gigLocked}
+                          chosenWorker={isAcceptedMatch}
                           contractorDecision={contractorDecision}
                           scheduledFor={scheduledFor}
                           onAccept={(id) => void handleAcceptMatch(id, entry.matches!)}
                           onDecline={(id) => void handleDeclineMatch(id)}
                           onReleaseEscrow={(id) => void handleReleaseEscrow(id, entry.matches!)}
                           onFinishAndPay={(id) => void handleFinishAndPay(id, entry.matches!)}
-                          onMarkComplete={(id) => void onContractorMarkComplete(id)} />
+                          onMarkComplete={(id) => void onContractorMarkComplete(id)}
+                        />
                       );
                     })}
                   </div>
@@ -331,23 +370,30 @@ export function ChatPage({
               );
             }
 
+            // ── Standard text / status / error bubble ─────────────────────────
             return (
               <div key={entry.id} className={`flex gap-2 ${isAgent ? '' : 'flex-row-reverse'}`}>
                 <div className={`w-6 h-6 rounded-md flex items-center justify-center flex-shrink-0 mt-0.5 ${isAgent ? 'bg-brand-500' : 'bg-gray-200 dark:bg-gray-700'}`}>
                   {isAgent ? <Bot className="w-3 h-3 text-white" /> : <User className="w-3 h-3 text-gray-500 dark:text-gray-300" />}
                 </div>
-                <div className={`max-w-[80%] px-3 py-2 rounded-xl text-sm leading-relaxed ${
-                  isAgent
-                    ? entry.type === 'error' ? 'bg-red-50 dark:bg-red-500/10 border border-red-200 dark:border-red-500/20 text-red-700 dark:text-red-300 rounded-tl-sm'
-                      : entry.type === 'status' ? 'bg-brand-50 dark:bg-brand-500/10 border border-brand-200 dark:border-brand-500/20 text-brand-700 dark:text-brand-300 rounded-tl-sm'
-                      : 'bg-gray-100 dark:bg-gray-800 text-gray-700 dark:text-gray-200 rounded-tl-sm'
-                    : 'bg-brand-500 text-white rounded-tr-sm'
-                }`} dangerouslySetInnerHTML={{ __html: renderMarkdown(entry.content) }} />
+                <div
+                  className={`max-w-[80%] px-3 py-2 rounded-xl text-sm leading-relaxed ${
+                    isAgent
+                      ? entry.type === 'error'
+                        ? 'bg-red-50 dark:bg-red-500/10 border border-red-200 dark:border-red-500/20 text-red-700 dark:text-red-300 rounded-tl-sm'
+                        : entry.type === 'status'
+                        ? 'bg-brand-50 dark:bg-brand-500/10 border border-brand-200 dark:border-brand-500/20 text-brand-700 dark:text-brand-300 rounded-tl-sm'
+                        : 'bg-gray-100 dark:bg-gray-800 text-gray-700 dark:text-gray-200 rounded-tl-sm'
+                      : 'bg-brand-500 text-white rounded-tr-sm'
+                  }`}
+                  dangerouslySetInnerHTML={{ __html: renderMarkdown(entry.content) }}
+                />
               </div>
             );
           })}
 
-          {isThinking && (
+          {/* Generic thinking dots (shown while API call is in flight and telemetry not yet in list) */}
+          {isThinking && !entries.some((e) => e.type === 'telemetry') && (
             <div className="flex gap-2">
               <div className="w-6 h-6 bg-brand-500 rounded-md flex items-center justify-center flex-shrink-0">
                 <Bot className="w-3 h-3 text-white" />
@@ -368,19 +414,38 @@ export function ChatPage({
         <div className="px-3 pb-3 pt-2 border-t border-gray-200 dark:border-gray-800 bg-white dark:bg-gray-900">
           <div className="flex gap-1.5 items-end">
             <div className="flex-1 relative">
-              <textarea ref={inputRef} value={input} onChange={(e) => setInput(e.target.value)} onKeyDown={handleKey}
-                placeholder="Message Milo..." rows={1}
+              <textarea
+                ref={inputRef}
+                value={input}
+                onChange={(e) => setInput(e.target.value)}
+                onKeyDown={handleKey}
+                placeholder="Message Milo..."
+                rows={1}
                 className="w-full px-3 py-2.5 bg-gray-50 dark:bg-gray-800 border border-gray-200 dark:border-gray-700 focus:border-brand-500 focus:ring-1 focus:ring-brand-500/20 rounded-lg text-gray-900 dark:text-white placeholder-gray-400 dark:placeholder-gray-500 text-sm resize-none focus:outline-none transition-all"
                 style={{ minHeight: '42px', maxHeight: '100px' }}
-                onInput={(e) => { const el = e.currentTarget; el.style.height = 'auto'; el.style.height = Math.min(el.scrollHeight, 100) + 'px'; }} />
+                onInput={(e) => {
+                  const el = e.currentTarget;
+                  el.style.height = 'auto';
+                  el.style.height = Math.min(el.scrollHeight, 100) + 'px';
+                }}
+              />
             </div>
-            <button onClick={toggleVoice}
-              className={`w-9 h-9 flex items-center justify-center rounded-lg transition-all flex-shrink-0 ${isListening ? 'bg-red-500 text-white animate-pulse' : 'bg-gray-100 dark:bg-gray-800 text-gray-400 hover:bg-gray-200 dark:hover:bg-gray-700'}`}
-              title={isListening ? 'Stop' : 'Voice'}>
+            <button
+              onClick={toggleVoice}
+              className={`w-9 h-9 flex items-center justify-center rounded-lg transition-all flex-shrink-0 ${
+                isListening
+                  ? 'bg-red-500 text-white animate-pulse'
+                  : 'bg-gray-100 dark:bg-gray-800 text-gray-400 hover:bg-gray-200 dark:hover:bg-gray-700'
+              }`}
+              title={isListening ? 'Stop' : 'Voice'}
+            >
               {isListening ? <MicOff className="w-4 h-4" /> : <Mic className="w-4 h-4" />}
             </button>
-            <button onClick={submit} disabled={!input.trim() || isThinking}
-              className="w-9 h-9 flex items-center justify-center bg-brand-500 hover:bg-brand-600 disabled:bg-gray-200 dark:disabled:bg-gray-700 disabled:cursor-not-allowed rounded-lg transition-all flex-shrink-0">
+            <button
+              onClick={submit}
+              disabled={!input.trim() || isThinking}
+              className="w-9 h-9 flex items-center justify-center bg-brand-500 hover:bg-brand-600 disabled:bg-gray-200 dark:disabled:bg-gray-700 disabled:cursor-not-allowed rounded-lg transition-all flex-shrink-0"
+            >
               <Send className="w-4 h-4 text-white disabled:text-gray-400" />
             </button>
           </div>

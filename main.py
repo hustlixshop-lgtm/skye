@@ -237,6 +237,7 @@ def mock_matches(task_label: str, category: str, pay_min: int, pay_max: int, loc
     """
     Scans the true local MOCK_PROFILES list and returns actual accounts that 
     partially match either the target location or keywords in the task.
+    Uses UUIDv5 namespacing to keep strings legally formatted for Supabase.
     """
     matched_peers = []
     task_lower = task_label.lower()
@@ -265,38 +266,17 @@ def mock_matches(task_label: str, category: str, pay_min: int, pay_max: int, loc
     role_flag = "Client" if resolved_user_role == "worker" else "Helper"
     title_suffix = "Needed" if resolved_user_role == "worker" else "Provider"
 
-    # CRITICAL FIX: These match the snake_case profile names used in your frontend matching links
-    deterministic_uuids = {
-        "Alex Chen": "alex-chen",
-        "Jordan Smith": "jordan-smith",
-        "Maya Patel": "maya-patel",
-        "Liam Torres": "liam-torres",
-        "Priya Rao": "priya-rao",
-        "Kai Nakamura": "kai-nakamura",
-        "Zara Okonkwo": "zara-okonkwo",
-        "Diego Reyes": "diego-reyes",
-        "Luna Park": "luna-park",
-        "Raj Gupta": "raj-gupta",
-        "Ava Williams": "ava-williams",
-        "Marcus Brown": "marcus-brown",
-        "Sofia Martinez": "sofia-martinez",
-        "Ethan Lee": "ethan-lee",
-        "Chloe Kim": "chloe-kim",
-        "Omar Hassan": "omar-hassan",
-        "Ruby Taylor": "ruby-taylor",
-        "James Chen": "james-chen",
-        "Isla Murphy": "isla-murphy",
-        "Leo Schmidt": "leo-schmidt"
-    }
+    # Base seed namespace to generate deterministic structural UUIDs from text strings
+    NAMESPACE_MILO = uuid.UUID('6ba7b810-9dad-11d1-80b4-00c04fd430c8')
 
     results = []
     for name, score, loc in matched_peers[:3]:
-        # Generate clean string patterns matching the query schema requirements
         slug_name = name.lower().replace(' ', '-')
-        assigned_user_id = deterministic_uuids.get(name, slug_name)
         
-        # Keep this clean and aligned with what your client dashboard checks
-        generated_match_id = f"match-live-{slug_name}"
+        # This converts text strings into database-acceptable UUIDs cleanly
+        # e.g. "luna-park" -> "5487779d-0974-569b-8e12-421711df77bf"
+        assigned_user_id = str(uuid.uuid5(NAMESPACE_MILO, f"user-{slug_name}"))
+        generated_match_id = str(uuid.uuid5(NAMESPACE_MILO, f"match-live-{slug_name}"))
         
         results.append({
             "id": generated_match_id,

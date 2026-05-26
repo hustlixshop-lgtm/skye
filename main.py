@@ -6,7 +6,7 @@ from typing import List, Optional, Dict, Any
 from fastapi import FastAPI, HTTPException
 from fastapi.middleware.cors import CORSMiddleware
 from pydantic import BaseModel, Field
-from mistralai import Mistral
+from mistralai.client import Mistral
 from supabase import create_client, Client
 
 # ══════════════════════════════════════════════════════════════════

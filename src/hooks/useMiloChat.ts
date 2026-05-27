@@ -38,19 +38,19 @@ function makeEntry(
 }
 
 function dbMessageToEntry(msg: ChatMessage): ChatEntry {
-  const meta = (msg.metadata as Record<string, unknown>) || {};
+  const meta = (msg?.metadata as Record<string, unknown>) || {};
   let matches: GigMatch[] | undefined;
-  if (msg.message_type === 'match_cards' && meta.matches && Array.isArray(meta.matches)) {
+  if (msg?.message_type === 'match_cards' && meta?.matches && Array.isArray(meta.matches)) {
     matches = meta.matches as GigMatch[];
   }
   return {
-    id: msg.id,
-    role: msg.role,
-    content: msg.content,
-    type: (msg.message_type as ChatEntry['type']) || 'text',
+    id: msg?.id || crypto.randomUUID(),
+    role: msg?.role || 'agent',
+    content: msg?.content || '',
+    type: (msg?.message_type as ChatEntry['type']) || 'text',
     matches,
-    showTelemetry: msg.message_type === 'telemetry' ? true : undefined,
-    timestamp: new Date(msg.created_at),
+    showTelemetry: msg?.message_type === 'telemetry' ? true : undefined,
+    timestamp: msg?.created_at ? new Date(msg.created_at) : new Date(),
   };
 }
 
@@ -58,7 +58,7 @@ export function useMiloChat({
   profile,
   userId,
   sessionId,
-  matches,
+  matches: globalMatches,
   onSaveGig,
   onSaveMatches,
   onUpdateMatchDecision,
@@ -71,9 +71,8 @@ export function useMiloChat({
   const [isThinking, setIsThinking] = useState(false);
   const loadedSessionRef = useRef<string | null>(null);
 
-  // Dynamic state that maps the user's intent FOR THIS SPECIFIC CHAT
   const [activeRole, setActiveRole] = useState<'finder' | 'worker'>(
-    profile.role === 'both' ? 'worker' : (profile.role as 'finder' | 'worker')
+    profile?.role === 'both' ? 'worker' : (profile?.role as 'finder' | 'worker') || 'worker'
   );
 
   useEffect(() => {
@@ -91,16 +90,18 @@ export function useMiloChat({
         if (data && data.length > 0) {
           setEntries(data.map((m) => dbMessageToEntry(m as ChatMessage)));
           const last = data[data.length - 1] as ChatMessage;
-          if (last.message_type === 'match_cards' || (last.message_type as string) === 'system_cards') {
+          if (last?.message_type === 'match_cards' || (last?.message_type as string) === 'system_cards') {
             setPhase('browsing_matches');
           } else {
             setPhase('mode_select');
           }
         } else {
+          // TS FIX: Removed arguments that getMiloGreeting doesn't accept
           setEntries([makeEntry('agent', getMiloGreeting())]);
           setPhase('mode_select');
         }
       } catch (err) {
+        // TS FIX: Removed arguments that getMiloGreeting doesn't accept
         setEntries([makeEntry('agent', getMiloGreeting())]);
         setPhase('mode_select');
       }
@@ -142,17 +143,17 @@ export function useMiloChat({
         lower.includes('finish order') ||
         lower.includes('release payment')
       ) {
-        const activeHeldMatch = matches.find(
-          (m) => m.decision === 'accepted' && m.escrow_status === 'held'
+        const activeHeldMatch = globalMatches?.find(
+          (m) => m?.decision === 'accepted' && m?.escrow_status === 'held'
         );
         if (activeHeldMatch) {
           setIsThinking(true);
           await onFinishAndPay(activeHeldMatch.id);
           
           if (activeRole === 'worker') {
-            agentSay(`Payment processed completely! **$${activeHeldMatch.pay_max}** has arrived safely in your account balance from ${activeHeldMatch.matched_user_name}.`, 'status');
+            agentSay(`Payment processed completely! **$${activeHeldMatch?.pay_max ?? 0}** has arrived safely in your account balance from ${activeHeldMatch?.matched_user_name ?? 'the client'}.`, 'status');
           } else {
-            agentSay(`Payment complete! $${activeHeldMatch.pay_max} released out of your escrow holding to ${activeHeldMatch.matched_user_name}.`, 'status');
+            agentSay(`Payment complete! $${activeHeldMatch?.pay_max ?? 0} released out of your escrow holding to ${activeHeldMatch?.matched_user_name ?? 'the provider'}.`, 'status');
           }
           
           setIsThinking(false);
@@ -202,14 +203,14 @@ export function useMiloChat({
           messages: historicalMessages,
           user_profile: {
             user_id: userId,
-            role: profile.role || 'both', // Send the raw profile role, Mistral handles 'both' natively
-            location: profile.campus_location || 'Main Campus',
-            max_walk_time_mins: profile.max_walk_time_mins || 15,
+            role: profile?.role || 'both',
+            location: profile?.campus_location || 'Main Campus',
+            max_walk_time_mins: profile?.max_walk_time_mins || 15,
             payment_range: {
-              min: profile.pay_min ?? 10,
-              max: profile.pay_max ?? 50,
+              min: profile?.pay_min ?? 10,
+              max: profile?.pay_max ?? 50,
             },
-            skills_interests: profile.skills_interests || ['tutoring'],
+            skills_interests: profile?.skills_interests || ['tutoring'],
           },
         };
 
@@ -224,26 +225,35 @@ export function useMiloChat({
         const data = await response.json();
         setEntries((prev) => prev.filter((e) => e.id !== telemetryId));
 
-        // Dynamically shift the transaction role based on what the backend determined
-        const actionDirective = data.directive?.action;
-        if (actionDirective === 'search_gigs') setActiveRole('worker');
-        if (actionDirective === 'post_gig') setActiveRole('finder');
+        const actionDirective = data?.directive?.action;
+        let determinedRole = activeRole;
+        if (actionDirective === 'search_gigs') determinedRole = 'worker';
+        if (actionDirective === 'post_gig') determinedRole = 'finder';
+        setActiveRole(determinedRole);
 
-        const serverMessage = data.message || data.milo_response || 'Checking campus listings...';
+        const serverMessage = data?.message || data?.milo_response || 'Checking campus listings...';
         agentSay(serverMessage, 'text');
 
-        if (Array.isArray(data.matches) && data.matches.length > 0) {
+        if (Array.isArray(data?.matches) && data.matches.length > 0) {
           const resolvedGigId = crypto.randomUUID();
-          const compiledMatches: GigMatch[] = data.matches.map((m: any) => ({
-            ...m,
-            gig_id: m.gig_id || resolvedGigId,
-            user_id: userId, 
-            decision: m.decision ?? null,
-            escrow_status: m.escrow_status ?? 'pending',
-            pay_max: m.pay_max ?? profile.pay_max ?? 50,
-            created_at: new Date().toISOString(),
-            updated_at: new Date().toISOString(),
-          }));
+          
+          const compiledMatches: GigMatch[] = data.matches.map((m: any) => {
+            const posterId = determinedRole === 'worker' ? (m?.poster_id || m?.user_id || 'mock-client') : userId;
+            const workerId = determinedRole === 'worker' ? userId : (m?.matched_user_id || m?.worker_id || 'mock-worker');
+
+            return {
+              ...m,
+              gig_id: m?.gig_id || resolvedGigId,
+              user_id: posterId, 
+              matched_user_id: workerId,
+              is_poster: determinedRole === 'finder',
+              decision: m?.decision ?? null,
+              escrow_status: m?.escrow_status ?? 'pending',
+              pay_max: m?.pay_max ?? profile?.pay_max ?? 50,
+              created_at: new Date().toISOString(),
+              updated_at: new Date().toISOString(),
+            };
+          });
 
           await onSaveMatches(resolvedGigId, compiledMatches);
 
@@ -278,39 +288,40 @@ export function useMiloChat({
       profile,
       userId,
       sessionId,
-      matches,
+      globalMatches,
       onSaveGig,
       onSaveMatches,
       onPersistMessage,
       agentSay,
       onFinishAndPay,
-      activeRole, // Included in dependencies so it resolves correctly
+      activeRole,
     ]
   );
 
   const handleAcceptMatch = useCallback(
-    async (matchId: string, allMatches: GigMatch[]) => {
+    async (matchId: string, allMatches: GigMatch[] = []) => {
       await onUpdateMatchDecision(matchId, 'accepted');
-      const targetMatch = allMatches.find((m) => m.id === matchId);
       
-      // Copy dynamically updates based on the current active chat session!
+      // TS FIX: Safety fallback search for match details
+      const targetMatch = allMatches.find((m) => m.id === matchId) || globalMatches?.find((m) => m.id === matchId);
+      
       if (activeRole === 'worker') {
         agentSay(
           targetMatch
-            ? `Excellent! You accepted the gig from **${targetMatch.matched_user_name}**. They have safely escrowed **$${targetMatch.pay_max}** for you. When you finish the task, type 'Complete Order' here to receive your funds.`
+            ? `Excellent! You accepted the gig from **${targetMatch.matched_user_name ?? 'Client'}**. They have safely escrowed **$${targetMatch.pay_max ?? 0}** for you. When you finish the task, type 'Complete Order' here to receive your funds.`
             : 'Gig assignment accepted. Client funds are initialized in escrow holding.',
           'status'
         );
       } else {
         agentSay(
           targetMatch
-            ? `You accepted the match. **$${targetMatch.pay_max}** is initialized in escrow out of your profile balance. Once work concludes, type 'Complete Order' to release the payment to ${targetMatch.matched_user_name}.`
+            ? `You accepted the match. **$${targetMatch.pay_max ?? 0}** is initialized in escrow out of your profile balance. Once work concludes, type 'Complete Order' to release the payment to ${targetMatch.matched_user_name ?? 'the worker'}.`
             : 'Match confirmed. Escrow status transformed to held.',
           'status'
         );
       }
     },
-    [activeRole, onUpdateMatchDecision, agentSay]
+    [activeRole, onUpdateMatchDecision, agentSay, globalMatches]
   );
 
   const handleDeclineMatch = useCallback(
@@ -321,41 +332,45 @@ export function useMiloChat({
   );
 
   const handleReleaseEscrow = useCallback(
-    async (matchId: string, allMatches: GigMatch[]) => {
+    async (matchId: string, allMatches: GigMatch[] = []) => {
       await onReleaseEscrow(matchId);
-      const targetMatch = allMatches.find((m) => m.id === matchId);
+      
+      // TS FIX: Safety fallback search for match details
+      const targetMatch = allMatches.find((m) => m.id === matchId) || globalMatches?.find((m) => m.id === matchId);
       
       if (activeRole === 'worker') {
-        agentSay(targetMatch ? `Funds released! **$${targetMatch.pay_max}** has been deposited to your account.` : 'Escrow contract settled successfully.', 'status');
+        agentSay(targetMatch ? `Funds released! **$${targetMatch.pay_max ?? 0}** has been deposited to your account.` : 'Escrow contract settled successfully.', 'status');
       } else {
-        agentSay(targetMatch ? `Escrow securely dispatched: $${targetMatch.pay_max} transferred to ${targetMatch.matched_user_name}.` : 'Escrow contract successfully paid.', 'status');
+        agentSay(targetMatch ? `Escrow securely dispatched: $${targetMatch.pay_max ?? 0} transferred to ${targetMatch.matched_user_name ?? 'the worker'}.` : 'Escrow contract successfully paid.', 'status');
       }
     },
-    [activeRole, onReleaseEscrow, agentSay]
+    [activeRole, onReleaseEscrow, agentSay, globalMatches]
   );
 
   const handleFinishAndPay = useCallback(
-    async (matchId: string, allMatches: GigMatch[]) => {
+    async (matchId: string, allMatches: GigMatch[] = []) => {
       await onFinishAndPay(matchId);
-      const targetMatch = allMatches.find((m) => m.id === matchId);
+      
+      // TS FIX: Safety fallback search for match details
+      const targetMatch = allMatches.find((m) => m.id === matchId) || globalMatches?.find((m) => m.id === matchId);
       
       if (activeRole === 'worker') {
         agentSay(
           targetMatch
-            ? `Transaction completed. **$${targetMatch.pay_max}** was released out of holding directly into your profile balance from ${targetMatch.matched_user_name}!`
+            ? `Transaction completed. **$${targetMatch.pay_max ?? 0}** was released out of holding directly into your profile balance from ${targetMatch.matched_user_name ?? 'the client'}!`
             : 'Payment cleared. Order finalized!',
           'status'
         );
       } else {
         agentSay(
           targetMatch
-            ? `Transaction completed. **$${targetMatch.pay_max}** was released directly out of holding to ${targetMatch.matched_user_name}.`
+            ? `Transaction completed. **$${targetMatch.pay_max ?? 0}** was released directly out of holding to ${targetMatch.matched_user_name ?? 'the worker'}.`
             : 'Payment cleared. Order finalized!',
           'status'
         );
       }
     },
-    [activeRole, onFinishAndPay, agentSay]
+    [activeRole, onFinishAndPay, agentSay, globalMatches]
   );
 
   return {

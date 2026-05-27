@@ -17,12 +17,29 @@ export function TelemetryCard({ onComplete }: Props) {
   useEffect(() => {
     const timings = [600, 1200, 900, 800];
     let step = 0;
+    let timeoutId: NodeJS.Timeout;
+
     function advance() {
-      if (step >= STEPS.length) { onComplete?.(); return; }
+      if (step >= STEPS.length) { 
+        onComplete?.(); 
+        return; 
+      }
+      
       setCurrentStep(step);
-      setTimeout(() => { setCompletedSteps((prev) => [...prev, step]); step++; advance(); }, timings[step] ?? 800);
+      
+      // Store the timeout ID so we can clear it if the component unmounts
+      timeoutId = setTimeout(() => { 
+        setCompletedSteps((prev) => [...prev, step]); 
+        step++; 
+        advance(); 
+      }, timings[step] ?? 800);
     }
+    
     advance();
+
+    // CLEANUP: If the component unmounts, stop all timers immediately.
+    // This prevents state updates on unmounted components and stops visual flickering.
+    return () => clearTimeout(timeoutId);
   }, [onComplete]);
 
   return (
@@ -43,9 +60,13 @@ export function TelemetryCard({ onComplete }: Props) {
           const isPending = idx > currentStep;
           return (
             <div key={idx} className={`flex items-start gap-1.5 transition-all ${isPending ? 'opacity-25' : 'opacity-100'}`}>
-              {isComplete ? <CheckCircle className="w-3 h-3 text-brand-500 mt-0.5 flex-shrink-0" />
-                : isActive ? <Loader2 className="w-3 h-3 text-brand-500 animate-spin mt-0.5 flex-shrink-0" />
-                : <div className="w-3 h-3 rounded-full border border-gray-300 dark:border-gray-600 mt-0.5 flex-shrink-0" />}
+              {isComplete ? (
+                <CheckCircle className="w-3 h-3 text-brand-500 mt-0.5 flex-shrink-0" />
+              ) : isActive ? (
+                <Loader2 className="w-3 h-3 text-brand-500 animate-spin mt-0.5 flex-shrink-0" />
+              ) : (
+                <div className="w-3 h-3 rounded-full border border-gray-300 dark:border-gray-600 mt-0.5 flex-shrink-0" />
+              )}
               <span className={`${isComplete ? 'text-gray-500 dark:text-gray-400' : isActive ? 'text-brand-600 dark:text-brand-300' : 'text-gray-300 dark:text-gray-600'}`}>
                 {step}{isActive && <span className="animate-pulse">_</span>}
               </span>
